@@ -1,4 +1,7 @@
 # dependencies (bun install)
+.agents/
+.claude/
+skills-lock.json
 node_modules
 
 # output
