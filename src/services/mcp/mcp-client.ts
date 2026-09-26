@@ -3,7 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { Message } from '../../models/message';
+import type { ToolModelMessage } from 'ai';
 import { FileOAuthProvider } from './oauth-provider';
 import type {
   HttpServerConfig,
@@ -189,11 +189,15 @@ export class McpClientManager {
     }
   }
 
-  toMessage(result: McpToolResult): Message {
+  toMessage(toolCallId: string, result: McpToolResult): ToolModelMessage {
     return {
-      role: 'AGENT',
-      type: 'tool',
-      content: `${result.server}/${result.tool}${result.isError ? ' (error)' : ''}: ${result.content}`,
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId,
+        toolName: `${result.server}/${result.tool}`,
+        output: { type: result.isError ? 'error-text' : 'text', value: result.content },
+      }],
     };
   }
 

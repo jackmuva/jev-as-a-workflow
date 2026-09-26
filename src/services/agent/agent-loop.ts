@@ -1,38 +1,28 @@
-import { experimental_evaluate as evaluate } from 'ai';
-import type { Message } from '../../models/message';
+import type { ModelMessage } from 'ai';
+import type { AgentState } from '../../models/agent';
+import { evaluationNode, initialNode, createPlanNode } from './graph';
 
 const MAX_ITERATIONS = 1;
-const COMPLETION_THRESHOLD = 0.75;
 
 export const jevLoop = async (
-  messages: Message[],
-  callback: (message: Message) => void,
+  messages: ModelMessage[],
+  callback: (message: ModelMessage) => void,
 ) => {
   let i = 0;
+  let state: AgentState = { state: 'START', messages: [...messages] };
+  //
+  //Initial scoping
+  state = await initialNode(state, callback);
+  if (state.state === "PLAN") {
+    state = await createPlanNode(state, callback);
+  } else if (state.state === "DISCOVERY") {
+    return;
+  }
+
+  //Do Work
   while (i < MAX_ITERATIONS) {
-    const { answers: completed } = await evaluate({
-      model: 'typesafe-ai/jev',
-      state: [messages, {
-        role: "AGENT",
-        type: "text",
-        content: "yes completed"
-      }],
-      questions: {
-        taskCompleted: {
-          type: 'boolean',
-          instructions: 'Is the task in the user\'s last message complete?',
-        },
-      },
-    });
-
-    if (completed.taskCompleted.probability > COMPLETION_THRESHOLD) break;
-
-    callback({
-      role: "AGENT",
-      type: "json",
-      content: JSON.stringify(completed)
-    });
-
+    await evaluationNode(state, callback);
+    if (state.state === "END") break;
     i += 1;
   }
 }
