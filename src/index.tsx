@@ -1,7 +1,9 @@
 import { createCliRenderer, type KeyBinding, type TextareaRenderable } from "@opentui/core"
 import { createRoot } from "@opentui/react"
-import { useState, useCallback, useRef } from "react";
-import { jevLoop } from "./agent/agent-loop";
+import { useState, useRef } from "react";
+import { jevLoop } from "./services/agent/agent-loop";
+import type { Message } from "./models/message";
+import { mcpClient } from "./services/mcp/mcp-client";
 
 const chatKeyBindings: KeyBinding[] = [
   { name: "return", action: "submit" },
@@ -13,35 +15,39 @@ const chatKeyBindings: KeyBinding[] = [
 ]
 
 function App() {
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
   const textareaRef = useRef<TextareaRenderable>(null)
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = async () => {
     const text = textareaRef.current?.plainText.trim()
-    if (!text) return
+    if (!text || status === "working") return;
 
     setStatus("working")
-    setMessages((prev) => [...prev, text])
+    setMessages((prev) => [...prev, {
+      role: "USER",
+      type: "text",
+      content: text
+    }])
     textareaRef.current?.clear()
-    
-    jevLoop(text, (message) => setMessages((prev) => [...prev, message]));
-    setStatus("ready")
-  }, [])
+
+    await jevLoop(messages, (message) => setMessages((prev) => [...prev, message]));
+    setStatus("ready");
+  }
 
   return (
     <box padding={1}>
       <box>
         {messages.map((message, index) => {
           return (<text key={index}>
-            {message}
+            {message.content}
           </text>)
         })}
       </box>
       {status !== "ready" && <text>{status.toUpperCase()}</text>}
       <textarea
         ref={textareaRef}
-        marginY={messages.length > 0 ? 1: 0}
+        marginY={messages.length > 0 ? 1 : 0}
         placeholder="What would you like to do"
         keyBindings={chatKeyBindings}
         onSubmit={handleSubmit}
@@ -50,6 +56,10 @@ function App() {
     </box>
   )
 }
+
+await mcpClient.loadConfig()
+await mcpClient.connectAll()
+process.on("exit", () => { void mcpClient.close() })
 
 const renderer = await createCliRenderer()
 createRoot(renderer).render(<App />)
