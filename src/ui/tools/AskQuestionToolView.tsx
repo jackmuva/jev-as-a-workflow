@@ -1,5 +1,5 @@
-import type { ToolViewProps } from "../../lib/types"
-import { asRecord, callTitle } from "../../lib/utils"
+import type { ToolViewProps } from "../lib/types"
+import { asRecord, callTitle } from "../lib/utils"
 import { ListToolView } from "../primitives/ListToolView"
 
 export const AskQuestionToolCallView = (props: ToolViewProps) => {

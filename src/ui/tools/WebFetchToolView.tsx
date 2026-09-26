@@ -1,5 +1,5 @@
-import type { ToolViewProps } from "../../lib/types"
-import { callTitle, looksLikeMarkdown, readStringField } from "../../lib/utils"
+import type { ToolViewProps } from "../lib/types"
+import { callTitle, looksLikeMarkdown, readStringField } from "../lib/utils"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
 import { ToolFrame } from "../primitives/ToolFrame"

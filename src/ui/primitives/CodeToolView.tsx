@@ -1,5 +1,5 @@
-import { syntaxStyle } from "../../syntax-style"
-import type { ToolViewProps } from "../../lib/types"
+import { syntaxStyle } from "../syntax-style"
+import type { ToolViewProps } from "../lib/types"
 import { ToolFrame } from "./ToolFrame"
 
 type CodeToolViewProps = ToolViewProps & {
