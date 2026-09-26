@@ -3,6 +3,12 @@ import type { AgentState } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
 import { askQuestionTool, type AskQuestionInput } from './default-tools/ask-question';
+import {
+  executeDefaultTool,
+  isDefaultToolKey,
+  listDefaultTools,
+} from './default-tools';
+import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 
 const toolKey = (tool: McpTool) => `${tool.server}/${tool.name}`;
 
@@ -17,7 +23,15 @@ const buildToolCriteria = (tools: McpTool[]) =>
     inputSchema: t.inputSchema as JSONValue,
   }]));
 
-const tools = await mcpClient.listTools();
+await loadUserTools();
+
+const listAllTools = async () => [
+  ...listDefaultTools(),
+  ...listUserTools(),
+  ...(await mcpClient.listTools()),
+];
+
+const tools = await listAllTools();
 const toolList = tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
@@ -168,7 +182,7 @@ export const toolSelectNode = async (
   state: AgentState,
   callback: (message: ModelMessage) => void,
 ): Promise<{ state: AgentState, options: string[] }> => {
-  const availableTools = await mcpClient.listTools();
+  const availableTools = await listAllTools();
   if (availableTools.length === 0) {
     const message: ModelMessage = {
       role: 'assistant',
@@ -248,9 +262,9 @@ export const runToolNode = async (
     return { state: 'END', messages: [...state.messages, message] };
   }
 
-  const availableTools = await mcpClient.listTools();
-  const mcpTool = availableTools.find((t) => toolKey(t) === selectedTool);
-  if (!mcpTool) {
+  const availableTools = await listAllTools();
+  const selected = availableTools.find((t) => toolKey(t) === selectedTool);
+  if (!selected) {
     const message: ModelMessage = {
       role: 'assistant',
       content: `Unknown tool: ${selectedTool}`,
@@ -261,9 +275,9 @@ export const runToolNode = async (
 
   const { server, name } = parseToolKey(selectedTool);
   const toolName = selectedTool.replace('/', '_');
-  const mcpAiTool = tool({
-    description: mcpTool.description ?? `Call the ${selectedTool} MCP tool`,
-    inputSchema: jsonSchema<Record<string, unknown>>(mcpTool.inputSchema as Record<string, unknown>),
+  const aiTool = tool({
+    description: selected.description ?? `Call the ${selectedTool} tool`,
+    inputSchema: jsonSchema<Record<string, unknown>>(selected.inputSchema as Record<string, unknown>),
   });
 
   let toolCall = undefined;
@@ -272,7 +286,7 @@ export const runToolNode = async (
       model: 'deepseek/deepseek-v4.1-flash',
       instructions: `Call the ${selectedTool} tool with the arguments needed to make progress on the user's task.`,
       messages: state.messages,
-      tools: { [toolName]: mcpAiTool },
+      tools: { [toolName]: aiTool },
       toolChoice: { type: 'tool', toolName },
     });
     toolCall = result.toolCalls[0];
@@ -298,12 +312,12 @@ export const runToolNode = async (
   };
   callback(toolCallMessage);
 
-  const mcpResult = await mcpClient.callTool(
-    server,
-    name,
-    toolCall.input as Record<string, unknown>,
-  );
-  const toolResultMessage = mcpClient.toMessage(toolCall.toolCallId, mcpResult);
+  const toolResult = isDefaultToolKey(selectedTool)
+    ? await executeDefaultTool(name, toolCall.input as Record<string, unknown>)
+    : isUserToolKey(selectedTool)
+      ? await executeUserTool(name, toolCall.input as Record<string, unknown>)
+      : await mcpClient.callTool(server, name, toolCall.input as Record<string, unknown>);
+  const toolResultMessage = mcpClient.toMessage(toolCall.toolCallId, toolResult);
   callback(toolResultMessage);
 
   return {
