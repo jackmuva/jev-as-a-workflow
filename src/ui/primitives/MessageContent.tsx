@@ -57,6 +57,38 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
         {message.content.map((part, index) => {
           if (part.type !== "tool-result") return null
           const toolResult = part as ToolResultPart
+
+          if (toolResult.toolName.endsWith("/message_answer")) {
+            return (
+              <box
+                key={toolResult.toolCallId ?? index}
+                border={["left"]}
+                borderColor={AGENT_BORDER_COLOR}
+                paddingLeft={1}
+                marginBottom={1}
+                width="100%"
+              >
+                <text>{formatToolResultText(toolResult)}</text>
+              </box>
+            )
+          }
+
+          if (toolResult.toolName === "AskQuestion") {
+            return (
+              <box
+                key={toolResult.toolCallId ?? index}
+                border={["left"]}
+                borderColor={AGENT_BORDER_COLOR}
+                paddingLeft={1}
+                marginBottom={1}
+                width="100%"
+              >
+                <text fg={AGENT_BORDER_COLOR}>Your answers</text>
+                <text>{formatToolResultText(toolResult)}</text>
+              </box>
+            )
+          }
+
           const matchedCall = toolCallInputs.get(toolResult.toolCallId)
           return (
             <box key={toolResult.toolCallId ?? index}>
@@ -81,6 +113,11 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
         {message.content.map((part, index) => {
           if (part.type !== "tool-call") return null
           const toolCall = part as ToolCallPart
+
+          if (toolCall.toolName === "AskQuestion") {
+            return null
+          }
+
           return (
             <box key={toolCall.toolCallId ?? index}>
               {renderToolCall({

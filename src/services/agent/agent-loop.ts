@@ -1,4 +1,5 @@
 import type { ModelMessage } from 'ai';
+import { findPendingAskQuestion } from './utils/ask-question-state';
 import type { AgentState } from '../../models/agent';
 import { clarifyTaskNode, createPlanNode, evaluationNode, initialNode, runToolNode, toolSelectNode } from './graph';
 import { compactionHook } from './hooks/compaction';
@@ -13,25 +14,30 @@ export const jevLoop = async (
   let i = 0;
   let state: AgentState = { state: 'START', messages: [...messages] };
 
-  //Initial scoping
+  if (findPendingAskQuestion(state.messages)) {
+    return;
+  }
+
   state = await initialNode(state, callback);
   if (state.state === "PLAN") {
     state = await createPlanNode(state, callback);
   } else if (state.state === "DISCOVERY") {
     state = await clarifyTaskNode(state, callback);
-    return;
+    if (findPendingAskQuestion(state.messages)) {
+      return;
+    }
   }
 
-  //Do Work
   let checkpoints: Array<{ state: AgentState, options: string[] }> = [];
   while (i < MAX_ITERATIONS) {
-    if (state.state !== "REWIND") {
+    if (state.state !== "REWIND" && !state.selectedTool) {
       const { state: newState, options } = await toolSelectNode(state, callback);
       state = newState;
       if (options.length > 0) checkpoints.push({ state: { ...newState }, options });
     }
     if (state.state === "EXECUTE" || state.state === "REWIND") {
       state = await runToolNode(state, callback);
+      state = { ...state, selectedTool: undefined };
       state = await compactionHook(state);
     }
 

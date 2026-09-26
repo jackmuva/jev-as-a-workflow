@@ -3,8 +3,11 @@ import { useTerminalDimensions } from "@opentui/react"
 import type { ModelMessage } from "ai"
 import { useMemo, useRef, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
+import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { buildToolCallInputMap } from "./lib/format"
+import { ClarifyQuestionBox } from "./primitives/ClarifyQuestionBox"
 import { MessageContent } from "./primitives/MessageContent"
+import { WorkingIndicator } from "./primitives/WorkingIndicator"
 
 const chatKeyBindings: KeyBinding[] = [
   { name: "return", action: "submit" },
@@ -25,6 +28,7 @@ export function App({ initialMessage, seedMessages }: AppProps) {
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
   const textareaRef = useRef<TextareaRenderable>(null)
   const { height } = useTerminalDimensions()
+  const pendingAsk = findPendingAskQuestion(messages)
 
   const visibleMessages = useMemo(
     () => messages.filter((message) => message.role !== "system"),
@@ -50,6 +54,26 @@ export function App({ initialMessage, seedMessages }: AppProps) {
     setStatus("ready")
   }
 
+  const handleAskQuestionSubmit = async (answersText: string) => {
+    if (!pendingAsk || status === "working") return
+
+    setStatus("working")
+    const toolResult: ModelMessage = {
+      role: "tool",
+      content: [{
+        type: "tool-result",
+        toolCallId: pendingAsk.toolCallId,
+        toolName: "AskQuestion",
+        output: { type: "text", value: answersText },
+      }],
+    }
+    const nextMessages = [...messages, toolResult]
+    setMessages(nextMessages)
+
+    await jevLoop(nextMessages, (message) => setMessages((prev) => [...prev, message]))
+    setStatus("ready")
+  }
+
   return (
     <box flexDirection="column" height={height} padding={1}>
       <scrollbox
@@ -68,15 +92,23 @@ export function App({ initialMessage, seedMessages }: AppProps) {
           />
         ))}
       </scrollbox>
-      {status !== "ready" && <text>{status.toUpperCase()}</text>}
-      <textarea
-        ref={textareaRef}
-        marginY={visibleMessages.length > 0 ? 1 : 0}
-        placeholder="What would you like to do"
-        keyBindings={chatKeyBindings}
-        onSubmit={handleSubmit}
-        focused={true}
-      />
+      {status === "working" && <WorkingIndicator />}
+      {status === "error" && <text>ERROR</text>}
+      {pendingAsk ? (
+        <ClarifyQuestionBox
+          input={pendingAsk.input}
+          onSubmit={handleAskQuestionSubmit}
+        />
+      ) : (
+        <textarea
+          ref={textareaRef}
+          marginY={visibleMessages.length > 0 ? 1 : 0}
+          placeholder="What would you like to do"
+          keyBindings={chatKeyBindings}
+          onSubmit={handleSubmit}
+          focused={true}
+        />
+      )}
     </box>
   )
 }

@@ -3,7 +3,8 @@ import { jsonSchema, tool } from "ai";
 export type AskQuestionOption = { id: string; label: string };
 export type AskQuestionItem = {
   id: string;
-  prompt: string;
+  prompt?: string;
+  question?: string;
   options: AskQuestionOption[];
   allow_multiple?: boolean;
 };

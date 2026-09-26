@@ -13,6 +13,7 @@ import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
 import { askQuestionTool, type AskQuestionInput } from './default-tools/ask-question';
 import {
+  defaultToolKey,
   executeDefaultTool,
   isDefaultToolKey,
   listDefaultTools,
@@ -149,7 +150,8 @@ export const initialNode = async (state: AgentState, callback: (message: ModelMe
         type: "choice",
         instructions: "Based off the user's last ask and the tools given, what should we do?",
         criteria: {
-          "directAnswer": "The user's task can be solved with a single tool call",
+          "answerQuestion": "The user is asking an informational question for the LLM to answer. Use message_answer.",
+          "directAnswer": "The user wants a command or action performed with a single tool call (not message_answer).",
           "createPlan": "The user's task is a multi-step problem. We should create a plan.",
           "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
           "outOfScope": "The task is outside of the capabilities given the tools"
@@ -167,6 +169,12 @@ export const initialNode = async (state: AgentState, callback: (message: ModelMe
     return { state: "END", messages: [...state.messages, message] };
   } else if (answers.nextStep.choice === "createPlan") {
     return { state: "PLAN", messages: state.messages };
+  } else if (answers.nextStep.choice === "answerQuestion") {
+    return {
+      state: "EXECUTE",
+      messages: state.messages,
+      selectedTool: defaultToolKey('message_answer'),
+    };
   } else if (answers.nextStep.choice === "directAnswer") {
     return { state: "EXECUTE", messages: state.messages };
   } else {
@@ -337,8 +345,12 @@ export const runToolNode = async (
     inputSchema: jsonSchema<Record<string, unknown>>(selected.inputSchema as Record<string, unknown>),
   });
 
+  const instructions = name === 'message_answer'
+    ? `The user asked a question. Call the ${toolName} tool with a clear, helpful answer based on the conversation and your knowledge.`
+    : `Call the ${toolName} tool with the arguments needed to make progress on the user's task.`;
+
   const toolCall = await generateRequiredToolCall({
-    instructions: `Call the ${toolName} tool with the arguments needed to make progress on the user's task.`,
+    instructions,
     messages: state.messages,
     tools: { [toolName]: aiTool },
     toolName,

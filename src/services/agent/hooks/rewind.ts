@@ -14,7 +14,7 @@ export const rewindState = (checkpoints: Array<{ state: AgentState, options: str
       };
       return { state: newState, checkpoints: newCheckpoints }
     } else {
-      checkpoints.pop();
+      newCheckpoints.pop();
     }
   }
   return { state: newState, checkpoints: newCheckpoints }
