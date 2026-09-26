@@ -1,5 +1,15 @@
+import { writeFile, mkdtemp } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { jsonSchema, tool } from 'ai';
 import { IMAGE_MIMES } from './utils';
+
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+};
 
 export type WebFetchInput = {
   url: string;
@@ -125,8 +135,10 @@ export const executeWebFetch = async ({ url, format = 'markdown', timeout }: Web
     if (bytes.byteLength > MAX_RESPONSE_SIZE) {
       throw new Error('Response too large (exceeds 5MB limit)');
     }
-    const base64 = Buffer.from(bytes).toString('base64');
-    return `Image fetched successfully (${mime}): data:${mime};base64,${base64.slice(0, 200)}... [${bytes.byteLength} bytes total]`;
+    const dir = await mkdtemp(join(tmpdir(), 'jev-fetch-'));
+    const path = join(dir, `image${IMAGE_EXTENSIONS[mime] ?? '.img'}`);
+    await writeFile(path, bytes);
+    return `Image fetched (${mime}, ${bytes.byteLength} bytes)\n[image:${path}]`;
   }
 
   const buffer = await response.arrayBuffer();

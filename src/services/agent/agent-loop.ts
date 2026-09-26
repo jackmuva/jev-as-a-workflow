@@ -12,7 +12,7 @@ export const jevLoop = async (
 ) => {
   let i = 0;
   let state: AgentState = { state: 'START', messages: [...messages] };
-  //
+
   //Initial scoping
   state = await initialNode(state, callback);
   if (state.state === "PLAN") {

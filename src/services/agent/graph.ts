@@ -54,7 +54,7 @@ const generateRequiredToolCall = async ({
     try {
       const prompt = preparePrompt(instructions, messages);
       const result = await generateText({
-        model: 'deepseek/deepseek-v4.1-flash',
+        model: 'deepseek/deepseek-v4-flash',
         instructions: prompt.instructions,
         messages: prompt.messages,
         tools,
@@ -181,7 +181,7 @@ export const createPlanNode = async (state: AgentState, callback: (message: Mode
     state.messages,
   );
   const { text } = await generateText({
-    model: 'deepseek/deepseek-v4.1-flash',
+    model: 'deepseek/deepseek-v4-flash',
     instructions: planPrompt.instructions,
     messages: planPrompt.messages,
   });

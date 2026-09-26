@@ -88,8 +88,7 @@ export const executeReadFile = async ({ filePath, offset = 1, limit = DEFAULT_RE
   const mime = mimeFromExtension(resolved);
   if (mime && IMAGE_MIMES.has(mime)) {
     const bytes = await readFile(resolved);
-    const base64 = Buffer.from(bytes).toString('base64');
-    return `Image file (${mime}): data:${mime};base64,${base64.slice(0, 200)}... [${bytes.byteLength} bytes total]`;
+    return `Image (${mime}, ${bytes.byteLength} bytes)\n[image:${resolved}]`;
   }
 
   const content = await readFile(resolved, 'utf-8');
