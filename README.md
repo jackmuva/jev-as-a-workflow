@@ -1,4 +1,4 @@
-# react
+# Jev Workflow Runner
 
 Requires [Bun](https://bun.sh/) 1.3.0 or later.
 

@@ -1,4 +1,4 @@
-import { join, resolve, isAbsolute } from 'node:path';
+import { join, resolve, isAbsolute, relative } from 'node:path';
 import { stat } from 'node:fs/promises';
 
 export const DEFAULT_TOOL_SERVER = 'default';
@@ -6,16 +6,60 @@ export const DEFAULT_TOOL_SERVER = 'default';
 export const MAX_OUTPUT_LINES = 2000;
 export const MAX_OUTPUT_BYTES = 30_000;
 
+const PROJECT_ROOT_MARKERS = new Set([
+  'src', 'lib', 'test', 'tests', 'docs', 'config', 'public', 'assets', 'scripts',
+  'node_modules', '.github', '.cursor', 'dist', 'build', 'app', 'packages',
+]);
+
 export const getWorkspaceDir = () => process.cwd();
 
-export const resolveWorkspacePath = (filePath: string) =>
-  isAbsolute(filePath) ? resolve(filePath) : resolve(getWorkspaceDir(), filePath);
+export const isPathWithinWorkspace = (
+  resolvedPath: string,
+  workspace = resolve(getWorkspaceDir()),
+) => {
+  const rel = relative(workspace, resolve(resolvedPath));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+};
+
+const looksLikeProjectRelativeAbsolute = (filePath: string) => {
+  const stripped = filePath.replace(/^\/+/, '');
+  const firstSegment = stripped.split(/[/\\]/)[0] ?? '';
+  return PROJECT_ROOT_MARKERS.has(firstSegment) || firstSegment.includes('.');
+};
+
+export const resolveWorkspacePath = (filePath: string) => {
+  const workspace = resolve(getWorkspaceDir());
+  const trimmed = filePath.trim().replace(/^['"]|['"]$/g, '');
+
+  if (!isAbsolute(trimmed)) {
+    return resolve(workspace, trimmed);
+  }
+
+  const resolved = resolve(trimmed);
+  if (isPathWithinWorkspace(resolved, workspace)) {
+    return resolved;
+  }
+
+  // Models often pass "/src/foo.ts" meaning workspace-relative, not a filesystem-root path.
+  if (looksLikeProjectRelativeAbsolute(trimmed)) {
+    const remapped = resolve(workspace, trimmed.replace(/^\/+/, ''));
+    if (isPathWithinWorkspace(remapped, workspace)) {
+      return remapped;
+    }
+  }
+
+  return resolved;
+};
 
 export const assertWithinWorkspace = async (filePath: string) => {
-  const resolved = resolveWorkspacePath(filePath);
   const workspace = resolve(getWorkspaceDir());
-  if (!resolved.startsWith(workspace)) {
-    throw new Error(`Path is outside the workspace: ${filePath}`);
+  const resolved = resolveWorkspacePath(filePath);
+  if (!isPathWithinWorkspace(resolved, workspace)) {
+    throw new Error(
+      `Path is outside the workspace: ${filePath}\n` +
+      `Workspace root: ${workspace}\n` +
+      `Use paths relative to the workspace (e.g. "src/index.ts"), not root-relative paths like "/src/index.ts".`,
+    );
   }
   return resolved;
 };

@@ -23,7 +23,7 @@ const readFileInputSchema = jsonSchema<ReadFileInput>({
   properties: {
     filePath: {
       type: 'string',
-      description: 'The absolute path to the file or directory to read',
+      description: 'Path to the file or directory, relative to the workspace root (e.g. "src/index.ts")',
     },
     offset: {
       type: 'number',
@@ -40,7 +40,7 @@ const readFileInputSchema = jsonSchema<ReadFileInput>({
 export const readFileDescription = `Read a file or directory from the local filesystem. If the path does not exist, an error is returned.
 
 Usage:
-- The filePath parameter should be an absolute path.
+- Prefer workspace-relative paths (e.g. "src/index.ts"). Do not use root-relative paths like "/src/index.ts".
 - By default, this tool returns up to 2000 lines from the start of the file.
 - The offset parameter is the line number to start from (1-indexed).
 - To read later sections, call this tool again with a larger offset.

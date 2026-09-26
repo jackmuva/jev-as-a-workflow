@@ -13,7 +13,7 @@ const writeFileInputSchema = jsonSchema<WriteFileInput>({
   properties: {
     filePath: {
       type: 'string',
-      description: 'The absolute path to the file to write',
+      description: 'Path to the file to write, relative to the workspace root (e.g. "src/index.ts")',
     },
     content: {
       type: 'string',

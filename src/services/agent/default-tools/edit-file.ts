@@ -16,7 +16,7 @@ const editFileInputSchema = jsonSchema<EditFileInput>({
   properties: {
     filePath: {
       type: 'string',
-      description: 'The absolute path to the file to modify',
+      description: 'Path to the file to modify, relative to the workspace root (e.g. "src/index.ts")',
     },
     oldString: {
       type: 'string',

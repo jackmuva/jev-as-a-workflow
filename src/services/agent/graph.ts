@@ -1,4 +1,13 @@
-import { experimental_evaluate as evaluate, generateText, jsonSchema, tool, type JSONValue, type ModelMessage } from 'ai';
+import {
+  experimental_evaluate as evaluate,
+  generateText,
+  jsonSchema,
+  tool,
+  ToolChoiceViolationError,
+  type JSONValue,
+  type ModelMessage,
+  type ToolChoice,
+} from 'ai';
 import type { AgentState } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
@@ -8,6 +17,7 @@ import {
   isDefaultToolKey,
   listDefaultTools,
 } from './default-tools';
+import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 
 const toolKey = (tool: McpTool) => `${tool.server}/${tool.name}`;
@@ -15,6 +25,52 @@ const toolKey = (tool: McpTool) => `${tool.server}/${tool.name}`;
 const parseToolKey = (key: string): { server: string, name: string } => {
   const slash = key.indexOf('/');
   return { server: key.slice(0, slash), name: key.slice(slash + 1) };
+};
+
+const toolInvocationName = (toolKeyValue: string, server: string, name: string) =>
+  isDefaultToolKey(toolKeyValue) || isUserToolKey(toolKeyValue)
+    ? name
+    : `${server}_${name}`;
+
+const generateRequiredToolCall = async ({
+  instructions,
+  messages,
+  tools,
+  toolName,
+  maxAttempts = 3,
+}: {
+  instructions: string;
+  messages: ModelMessage[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tools: Record<string, any>;
+  toolName: string;
+  maxAttempts?: number;
+}) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const toolChoice: ToolChoice<typeof tools> = attempt < maxAttempts - 1
+      ? { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> }
+      : 'required';
+
+    try {
+      const prompt = preparePrompt(instructions, messages);
+      const result = await generateText({
+        model: 'deepseek/deepseek-v4.1-flash',
+        instructions: prompt.instructions,
+        messages: prompt.messages,
+        tools,
+        toolChoice,
+      });
+
+      const toolCall = result.toolCalls.find(
+        (call) => toolChoice === 'required' || call.toolName === toolName,
+      );
+      if (toolCall) return toolCall;
+    } catch (error) {
+      if (!ToolChoiceViolationError.isInstance(error)) throw error;
+    }
+  }
+
+  return undefined;
 };
 
 const buildToolCriteria = (tools: McpTool[]) =>
@@ -120,10 +176,14 @@ export const initialNode = async (state: AgentState, callback: (message: ModelMe
 
 export const createPlanNode = async (state: AgentState, callback: (message: ModelMessage) => void,
 ): Promise<AgentState> => {
+  const planPrompt = preparePrompt(
+    `You are a planner. Break the user's task into a short numbered list of steps. \n\nWe have the following tools to complete the task:\n${toolList || '(none)'} \n\nRespond with the plan only.`,
+    state.messages,
+  );
   const { text } = await generateText({
     model: 'deepseek/deepseek-v4.1-flash',
-    instructions: `You are a planner. Break the user's task into a short numbered list of steps. \n\nWe have the following tools to complete the task:\n${toolList || '(none)'} \n\nRespond with the plan only.`,
-    messages: state.messages,
+    instructions: planPrompt.instructions,
+    messages: planPrompt.messages,
   });
 
   const message: ModelMessage = { role: 'assistant', content: text }
@@ -139,18 +199,15 @@ export const clarifyTaskNode = async (
   state: AgentState,
   callback: (message: ModelMessage) => void,
 ): Promise<AgentState> => {
-  const result = await generateText({
-    model: 'deepseek/deepseek-v4.1-flash',
+  const toolCall = await generateRequiredToolCall({
     instructions: `You are helping clarify an ambiguous user task before work begins. Ask 1-3 focused follow-up questions to resolve what is unclear.
 
 
 Call the AskQuestion tool with concrete options for each question. Provide 2-4 likely answers per question based on the task and available tools. Always include an option with id "other" and label "Other" so the user can type a custom answer.`,
     messages: state.messages,
     tools: { AskQuestion: askQuestionTool },
-    toolChoice: { type: 'tool', toolName: 'AskQuestion' },
+    toolName: 'AskQuestion',
   });
-
-  const toolCall = result.toolCalls[0];
   if (!toolCall) {
     const message: ModelMessage = {
       role: 'assistant',
@@ -274,23 +331,18 @@ export const runToolNode = async (
   }
 
   const { server, name } = parseToolKey(selectedTool);
-  const toolName = selectedTool.replace('/', '_');
+  const toolName = toolInvocationName(selectedTool, server, name);
   const aiTool = tool({
     description: selected.description ?? `Call the ${selectedTool} tool`,
     inputSchema: jsonSchema<Record<string, unknown>>(selected.inputSchema as Record<string, unknown>),
   });
 
-  let toolCall = undefined;
-  for (let attempt = 0; attempt < 3 && !toolCall; attempt++) {
-    const result = await generateText({
-      model: 'deepseek/deepseek-v4.1-flash',
-      instructions: `Call the ${selectedTool} tool with the arguments needed to make progress on the user's task.`,
-      messages: state.messages,
-      tools: { [toolName]: aiTool },
-      toolChoice: { type: 'tool', toolName },
-    });
-    toolCall = result.toolCalls[0];
-  }
+  const toolCall = await generateRequiredToolCall({
+    instructions: `Call the ${toolName} tool with the arguments needed to make progress on the user's task.`,
+    messages: state.messages,
+    tools: { [toolName]: aiTool },
+    toolName,
+  });
 
   if (!toolCall) {
     const message: ModelMessage = {

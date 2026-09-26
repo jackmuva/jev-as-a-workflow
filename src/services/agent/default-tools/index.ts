@@ -4,6 +4,7 @@ import { askQuestionTool } from './ask-question';
 import { bashDescription, bashTool, bashToolSchema, executeBash } from './bash';
 import { editFileDescription, editFileTool, editFileToolSchema, executeEditFile } from './edit-file';
 import { executeGlob, globDescription, globTool, globToolSchema } from './glob';
+import { executeListDir, listDirDescription, listDirTool, listDirToolSchema } from './list-dir';
 import { executeGrep, grepDescription, grepTool, grepToolSchema } from './grep';
 import { executeReadFile, readFileDescription, readFileTool, readFileToolSchema } from './read-file';
 import { executeWriteFile, writeFileDescription, writeFileTool, writeFileToolSchema } from './write-file';
@@ -71,6 +72,13 @@ const defaultToolEntries: DefaultToolEntry[] = [
     inputSchema: globToolSchema,
     execute: (args) => executeGlob(args as Parameters<typeof executeGlob>[0]),
     tool: globTool,
+  },
+  {
+    name: 'list_dir',
+    description: listDirDescription,
+    inputSchema: listDirToolSchema,
+    execute: (args) => executeListDir(args as Parameters<typeof executeListDir>[0]),
+    tool: listDirTool,
   },
   {
     name: 'websearch',
