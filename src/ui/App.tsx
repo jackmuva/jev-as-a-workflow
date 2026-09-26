@@ -4,6 +4,7 @@ import type { ModelMessage } from "ai"
 import { useMemo, useRef, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
+import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format"
 import { ClarifyQuestionBox } from "./primitives/ClarifyQuestionBox"
 import { MessageContent } from "./primitives/MessageContent"
@@ -24,7 +25,7 @@ type AppProps = {
 }
 
 export function App({ initialMessage, seedMessages }: AppProps) {
-  const [messages, setMessages] = useState<ModelMessage[]>(seedMessages)
+  const { messages, setMessages } = useSessionPersistence(seedMessages)
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
   const textareaRef = useRef<TextareaRenderable>(null)
   const { height } = useTerminalDimensions()
