@@ -12,8 +12,8 @@ import {
   isToolResultError,
   type ToolCallPart,
   type ToolResultPart,
-} from "./ui/tool-views/format";
-import { AGENT_BORDER_COLOR } from "./ui/tool-views/ToolFrame";
+} from "./ui/lib/format";
+import { AGENT_BORDER_COLOR } from "./ui/components/primitives/ToolFrame";
 
 const chatKeyBindings: KeyBinding[] = [
   { name: "return", action: "submit" },

@@ -35,13 +35,3 @@ export const buildToolCallInputMap = (messages: ModelMessage[]): Map<string, { t
 
   return map
 }
-
-export const formatInputSummary = (input: unknown): string => {
-  if (input == null) return ""
-  if (typeof input === "string") return input
-  try {
-    return JSON.stringify(input, null, 2)
-  } catch {
-    return String(input)
-  }
-}

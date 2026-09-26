@@ -1,6 +1,6 @@
-import { syntaxStyle } from "../syntax-style"
+import { syntaxStyle } from "../../syntax-style"
+import type { ToolViewProps } from "../../lib/types"
 import { ToolFrame } from "./ToolFrame"
-import type { ToolViewProps } from "./types"
 
 type DiffToolViewProps = ToolViewProps & {
   diff: string

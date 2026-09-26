@@ -1,5 +1,5 @@
+import type { ToolViewProps } from "../../lib/types"
 import { ToolFrame } from "./ToolFrame"
-import type { ToolViewProps } from "./types"
 
 type ListToolViewProps = ToolViewProps & {
   items: string[]

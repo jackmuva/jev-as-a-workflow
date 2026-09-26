@@ -73,6 +73,9 @@ export const parseLineNumberedContent = (text: string): ParsedLineNumberedConten
 export const looksLikeLineNumberedOutput = (text: string): boolean =>
   /^\d+:\s/.test(text.trim())
 
+export const looksLikeMarkdown = (text: string): boolean =>
+  /(^|\n)(#{1,6}\s|[-*]\s|\d+\.\s|```|\[.+\]\(.+\))/.test(text)
+
 export const buildUnifiedDiff = (
   filePath: string,
   oldText: string,
@@ -106,3 +109,11 @@ export const readStringField = (input: unknown, key: string): string | undefined
   const value = record?.[key]
   return typeof value === "string" ? value : undefined
 }
+
+export const readNumberField = (input: unknown, key: string, fallback: number): number => {
+  const record = asRecord(input)
+  const value = record?.[key]
+  return typeof value === "number" ? value : fallback
+}
+
+export const callTitle = (toolName: string) => `▶ ${toolName}`
