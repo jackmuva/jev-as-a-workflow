@@ -2,6 +2,7 @@ import { createCliRenderer, type KeyBinding, type TextareaRenderable } from "@op
 import { createRoot } from "@opentui/react"
 import { useState, useRef } from "react";
 import { jevLoop } from "./services/agent/agent-loop";
+import { frontLoadMessages } from "./services/agent/hooks/front-load";
 import type { ModelMessage } from "ai";
 import { mcpClient } from "./services/mcp/mcp-client";
 
@@ -33,8 +34,8 @@ const formatMessage = (message: ModelMessage): string => {
   }).join("\n")
 }
 
-function App(props: { initialMessage?: string | null }) {
-  const [messages, setMessages] = useState<ModelMessage[]>([]);
+function App(props: { initialMessage?: string | null; seedMessages: ModelMessage[] }) {
+  const [messages, setMessages] = useState<ModelMessage[]>(props.seedMessages);
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
   const textareaRef = useRef<TextareaRenderable>(null)
 
@@ -43,10 +44,12 @@ function App(props: { initialMessage?: string | null }) {
     if (!text || status === "working") return;
 
     setStatus("working")
-    setMessages((prev) => [...prev, { role: "user", content: text }])
+    const userMessage: ModelMessage = { role: "user", content: text };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
     textareaRef.current?.clear()
 
-    await jevLoop(messages, (message) => setMessages((prev) => [...prev, message]));
+    await jevLoop(nextMessages, (message) => setMessages((prev) => [...prev, message]));
     setStatus("ready");
   }
 
@@ -54,7 +57,7 @@ function App(props: { initialMessage?: string | null }) {
     <box padding={1}>
       <box>
         {props.initialMessage && <text fg={"red"}>{props.initialMessage}</text>}
-        {messages.map((message, index) => {
+        {messages.filter((message) => message.role !== "system").map((message, index) => {
           return (<text key={index}>
             {formatMessage(message)}
           </text>)
@@ -74,6 +77,7 @@ function App(props: { initialMessage?: string | null }) {
 }
 
 let initialMessage: null | string = null;
+const seedMessages = await frontLoadMessages();
 
 console.log("Connecting MCPs...");
 try {
@@ -85,5 +89,5 @@ try {
 
 process.on("exit", () => { void mcpClient.close() })
 const renderer = await createCliRenderer()
-createRoot(renderer).render(<App initialMessage={initialMessage} />)
+createRoot(renderer).render(<App initialMessage={initialMessage} seedMessages={seedMessages} />)
 
