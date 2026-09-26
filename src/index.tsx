@@ -1,10 +1,19 @@
 import { createCliRenderer, type KeyBinding, type TextareaRenderable } from "@opentui/core"
 import { createRoot, useTerminalDimensions } from "@opentui/react"
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { jevLoop } from "./services/agent/agent-loop";
 import { frontLoadMessages } from "./services/agent/hooks/front-load";
 import type { ModelMessage } from "ai";
 import { mcpClient } from "./services/mcp/mcp-client";
+import { renderToolCall, renderToolResult } from "./ui/tool-renderers";
+import {
+  buildToolCallInputMap,
+  formatToolResultText,
+  isToolResultError,
+  type ToolCallPart,
+  type ToolResultPart,
+} from "./ui/tool-views/format";
+import { AGENT_BORDER_COLOR } from "./ui/tool-views/ToolFrame";
 
 const chatKeyBindings: KeyBinding[] = [
   { name: "return", action: "submit" },
@@ -14,23 +23,6 @@ const chatKeyBindings: KeyBinding[] = [
   { name: "linefeed", action: "submit" },
   { name: "linefeed", shift: true, action: "newline" },
 ]
-
-const AGENT_BORDER_COLOR = "#565f89"
-const TOOL_RESULT_MAX_HEIGHT = 12
-
-type ToolResultPart = Extract<
-  NonNullable<ModelMessage["content"]>[number],
-  { type: "tool-result" }
->
-
-const formatToolResultText = (part: ToolResultPart): string => {
-  if ("value" in part.output) {
-    const value = part.output.value
-    if (typeof value === "string") return value
-    return JSON.stringify(value, null, 2)
-  }
-  return `[${part.output.type}]`
-}
 
 const formatMessageContent = (message: ModelMessage): string => {
   if (typeof message.content === "string") return message.content
@@ -53,10 +45,7 @@ const formatMessageContent = (message: ModelMessage): string => {
         }
         break
       case "tool-call":
-        parts.push(`[tool call: ${part.toolName}]`)
-        break
       case "tool-result":
-        parts.push(`${part.toolName}: ${formatToolResultText(part)}`)
         break
       default:
         parts.push(`[${part.type}]`)
@@ -65,31 +54,18 @@ const formatMessageContent = (message: ModelMessage): string => {
   return parts.join("")
 }
 
-const ToolResultBox = ({ toolName, text }: { toolName: string; text: string }) => {
-  const lineCount = Math.max(1, text.split("\n").length)
-  const needsScroll = lineCount > TOOL_RESULT_MAX_HEIGHT
-
-  return (
-    <box
-      border={true}
-      borderColor={AGENT_BORDER_COLOR}
-      paddingLeft={1}
-      marginBottom={1}
-      width="75%"
-    >
-      <text>{toolName}</text>
-      {needsScroll ? (
-        <scrollbox height={TOOL_RESULT_MAX_HEIGHT} width="100%">
-          <text>{text}</text>
-        </scrollbox>
-      ) : (
-        <text>{text}</text>
-      )}
-    </box>
-  )
+const hasOnlyToolCalls = (message: ModelMessage): boolean => {
+  if (message.role !== "assistant" || !Array.isArray(message.content)) return false
+  return message.content.length > 0 && message.content.every((part) => part.type === "tool-call")
 }
 
-const MessageContent = ({ message }: { message: ModelMessage }) => {
+const MessageContent = ({
+  message,
+  toolCallInputs,
+}: {
+  message: ModelMessage
+  toolCallInputs: Map<string, { toolName: string; input: unknown }>
+}) => {
   const isAgent = message.role === "assistant" || message.role === "tool"
 
   if (message.role === "tool" && Array.isArray(message.content)) {
@@ -97,12 +73,40 @@ const MessageContent = ({ message }: { message: ModelMessage }) => {
       <>
         {message.content.map((part, index) => {
           if (part.type !== "tool-result") return null
+          const toolResult = part as ToolResultPart
+          const matchedCall = toolCallInputs.get(toolResult.toolCallId)
           return (
-            <ToolResultBox
-              key={index}
-              toolName={part.toolName}
-              text={formatToolResultText(part)}
-            />
+            <box key={toolResult.toolCallId ?? index}>
+              {renderToolResult({
+                toolName: toolResult.toolName,
+                toolCallId: toolResult.toolCallId,
+                input: matchedCall?.input,
+                output: toolResult.output,
+                text: formatToolResultText(toolResult),
+                isError: isToolResultError(toolResult),
+              })}
+            </box>
+          )
+        })}
+      </>
+    )
+  }
+
+  if (hasOnlyToolCalls(message) && Array.isArray(message.content)) {
+    return (
+      <>
+        {message.content.map((part, index) => {
+          if (part.type !== "tool-call") return null
+          const toolCall = part as ToolCallPart
+          return (
+            <box key={toolCall.toolCallId ?? index}>
+              {renderToolCall({
+                toolName: toolCall.toolName,
+                toolCallId: toolCall.toolCallId,
+                input: toolCall.input,
+                text: "",
+              })}
+            </box>
           )
         })}
       </>
@@ -110,6 +114,7 @@ const MessageContent = ({ message }: { message: ModelMessage }) => {
   }
 
   const text = formatMessageContent(message)
+  if (!text) return null
 
   return (
     <box
@@ -130,6 +135,16 @@ function App(props: { initialMessage?: string | null; seedMessages: ModelMessage
   const textareaRef = useRef<TextareaRenderable>(null)
   const { height } = useTerminalDimensions()
 
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => message.role !== "system"),
+    [messages],
+  )
+
+  const toolCallInputs = useMemo(
+    () => buildToolCallInputMap(visibleMessages),
+    [visibleMessages],
+  )
+
   const handleSubmit = async () => {
     const text = textareaRef.current?.plainText.trim()
     if (!text || status === "working") return;
@@ -144,8 +159,6 @@ function App(props: { initialMessage?: string | null; seedMessages: ModelMessage
     setStatus("ready");
   }
 
-  const visibleMessages = messages.filter((message) => message.role !== "system")
-
   return (
     <box flexDirection="column" height={height} padding={1}>
       <scrollbox
@@ -157,7 +170,11 @@ function App(props: { initialMessage?: string | null; seedMessages: ModelMessage
       >
         {props.initialMessage && <text fg={"red"}>{props.initialMessage}</text>}
         {visibleMessages.map((message, index) => (
-          <MessageContent key={index} message={message} />
+          <MessageContent
+            key={index}
+            message={message}
+            toolCallInputs={toolCallInputs}
+          />
         ))}
       </scrollbox>
       {status !== "ready" && <text>{status.toUpperCase()}</text>}
