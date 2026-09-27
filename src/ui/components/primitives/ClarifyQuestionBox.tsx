@@ -1,12 +1,12 @@
 import type { SelectOption } from "@opentui/core"
 import { useState } from "react"
-import type { AskQuestionInput, AskQuestionItem } from "../../services/agent/default-tools/ask-question"
+import type { AskQuestionInput, AskQuestionItem } from "../../../services/agent/default-tools/ask-question"
 import {
   formatAskQuestionAnswers,
   getQuestionPrompt,
   isQuestionAnswerComplete,
   type QuestionAnswer,
-} from "../../services/agent/utils/ask-question-state"
+} from "../../../services/agent/utils/ask-question-state"
 import { AGENT_BORDER_COLOR } from "./ToolFrame"
 
 const OTHER_OPTION_ID = "other"

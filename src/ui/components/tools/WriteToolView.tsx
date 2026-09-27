@@ -1,10 +1,10 @@
-import type { ToolViewProps } from "../lib/types"
+import type { ToolViewProps } from "../../lib/types"
 import {
   buildWriteDiff,
   callTitle,
   filetypeFromPath,
   readStringField,
-} from "../lib/utils"
+} from "../../lib/utils"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { DefaultToolView } from "../primitives/DefaultToolView"
 import { DiffToolView } from "../primitives/DiffToolView"

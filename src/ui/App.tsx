@@ -6,9 +6,9 @@ import { jevLoop } from "../services/agent/agent-loop"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format"
-import { ClarifyQuestionBox } from "./primitives/ClarifyQuestionBox"
-import { MessageContent } from "./primitives/MessageContent"
-import { WorkingIndicator } from "./primitives/WorkingIndicator"
+import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
+import { MessageContent } from "./components/primitives/MessageContent"
+import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
 
 const chatKeyBindings: KeyBinding[] = [
   { name: "return", action: "submit" },

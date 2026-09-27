@@ -1,4 +1,4 @@
-import type { ToolViewProps } from "../lib/types"
+import type { ToolViewProps } from "../../lib/types"
 import {
   filetypeFromPath,
   looksLikeLineNumberedOutput,
@@ -6,7 +6,7 @@ import {
   readNumberField,
   readStringField,
   callTitle,
-} from "../lib/utils"
+} from "../../lib/utils"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { ListToolView } from "../primitives/ListToolView"
 import { ToolFrame } from "../primitives/ToolFrame"

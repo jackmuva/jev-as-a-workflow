@@ -2,7 +2,11 @@ import { Database } from 'bun:sqlite';
 import type { ModelMessage } from 'ai';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { JEV_HOME, SESSION_DB_PATH } from './paths';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const JEV_HOME = join(homedir(), '.jev-workflow-runner');
+const SESSION_DB_PATH = join(JEV_HOME, 'sessions.db');
 
 export type SessionRecord = {
   id: string;

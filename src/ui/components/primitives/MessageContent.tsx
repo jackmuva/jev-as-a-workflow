@@ -1,11 +1,11 @@
 import type { ModelMessage } from "ai"
-import { renderToolCall, renderToolResult } from "../tool-renderers"
+import { renderToolCall, renderToolResult } from "../../tool-renderers"
 import {
   formatToolResultText,
   isToolResultError,
   type ToolCallPart,
   type ToolResultPart,
-} from "../lib/format"
+} from "../../lib/format"
 import { AGENT_BORDER_COLOR } from "./ToolFrame"
 
 const formatMessageContent = (message: ModelMessage): string => {

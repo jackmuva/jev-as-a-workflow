@@ -1,5 +1,5 @@
 import { ToolFrame } from "./ToolFrame"
-import type { ToolViewProps } from "../lib/types"
+import type { ToolViewProps } from "../../lib/types"
 
 export const DefaultToolView = ({ toolName, text, isError }: ToolViewProps) => (
   <ToolFrame title={toolName}>

@@ -1,4 +1,4 @@
-import type { ToolViewProps } from "../lib/types"
+import type { ToolViewProps } from "../../lib/types"
 import { ToolFrame } from "./ToolFrame"
 
 type ListToolViewProps = ToolViewProps & {
