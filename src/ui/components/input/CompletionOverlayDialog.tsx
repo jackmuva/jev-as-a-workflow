@@ -4,7 +4,8 @@ import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56
-const DIALOG_PADDING = 3
+const HEADER_LINES = 2
+const DIALOG_PADDING = 2
 
 type CompletionOverlayDialogProps = {
   kind: CompletionKind
@@ -30,8 +31,12 @@ export const CompletionOverlayDialog = ({
     value: item.id,
   }))
 
-  const listHeight = Math.min(MAX_VISIBLE_ITEMS, Math.max(1, options.length))
-  const dialogHeight = listHeight + DIALOG_PADDING
+  const linesPerItem = 2
+  const listHeight = Math.min(
+    MAX_VISIBLE_ITEMS * linesPerItem,
+    Math.max(linesPerItem, options.length * linesPerItem),
+  )
+  const dialogHeight = listHeight + HEADER_LINES + DIALOG_PADDING
   const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(24, terminalWidth - 4))
   const top = Math.max(1, Math.floor((terminalHeight - dialogHeight) / 2))
   const left = Math.max(1, Math.floor((terminalWidth - dialogWidth) / 2))
