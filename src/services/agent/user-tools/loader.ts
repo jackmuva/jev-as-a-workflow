@@ -1,8 +1,8 @@
 import { mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { McpTool, McpToolResult } from '../../../models/mcp';
-import { USER_TOOL_SERVER, type UserToolDefinition } from './types';
-import { JEV_HOME } from '../../../constants';
+import { JEV_HOME, USER_TOOL_SERVER } from '../../../constants';
+import type { UserToolDefinition } from '../../../models/agent';
 
 export const USER_TOOLS_DIR = join(JEV_HOME, 'tools');
 

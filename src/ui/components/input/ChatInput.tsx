@@ -1,9 +1,9 @@
 import type { KeyBinding, TextareaRenderable } from "@opentui/core"
 import { useEffect, useRef } from "react"
-import { listWorkspaceFiles } from "../../lib/input-completion/file-index"
+import { listWorkspaceFiles } from "../../lib/input-completion/at-files"
 import { useInputCompletion } from "../../hooks/useInputCompletion"
-import type { SlashCommandActions } from "../../lib/input-completion/providers/slash-commands"
-import type { CompletionState } from "../../lib/input-completion/types"
+import type { SlashCommandActions } from "../../lib/input-completion/slash-commands"
+import type { CompletionState } from "../../../models/ui"
 
 const chatKeyBindings: KeyBinding[] = [
   { name: "return", action: "submit" },

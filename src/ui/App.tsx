@@ -5,13 +5,13 @@ import { jevLoop } from "../services/agent/agent-loop"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format/format"
-import { resolveUserMessage } from "./lib/input-completion/resolve-message"
 import { CompletionOverlayDialog } from "./components/input/CompletionOverlayDialog"
 import { ChatInput } from "./components/input/ChatInput"
 import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
-import type { CompletionState } from "./lib/input-completion/types"
+import type { CompletionState } from "../models/ui"
+import { resolveUserMessage } from "./lib/input-completion/at-files"
 
 type AppProps = {
   initialMessage?: string | null

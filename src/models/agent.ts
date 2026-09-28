@@ -6,3 +6,10 @@ export type AgentState = {
   messages: ModelMessage[],
   selectedTool?: string,
 }
+
+export type UserToolDefinition = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  execute: (args: Record<string, unknown>) => Promise<string>;
+};

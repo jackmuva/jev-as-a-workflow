@@ -1,4 +1,4 @@
-import type { CompletionItem, SlashCommandDefinition } from "../types"
+import type { CompletionItem, SlashCommandDefinition } from "../../../models/ui"
 
 export const SLASH_COMMANDS: SlashCommandDefinition[] = [
   {

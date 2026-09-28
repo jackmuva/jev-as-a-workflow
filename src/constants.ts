@@ -10,3 +10,5 @@ export const COMPACTION_TOKEN_THRESHOLD = 0.75;
 export const SYSTEM_ONE_MODEL = 'typesafe-ai/jev';
 
 export const LLM_MODEL = 'deepseek/deepseek-v4-flash';
+
+export const USER_TOOL_SERVER = 'user';

@@ -1,13 +1,13 @@
 import type { KeyEvent, TextareaRenderable } from "@opentui/core"
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
-import { detectTrigger } from "../lib/input-completion/detect-trigger"
-import { getCompletions } from "../lib/input-completion/get-completions"
+import { detectTrigger } from "../lib/input-completion/completions"
+import { getCompletions } from "../lib/input-completion/completions"
 import {
   executeSlashCommand,
   findSlashCommand,
   type SlashCommandActions,
-} from "../lib/input-completion/providers/slash-commands"
-import type { CompletionItem, CompletionState } from "../lib/input-completion/types"
+} from "../lib/input-completion/slash-commands"
+import type { CompletionItem, CompletionState } from "../../models/ui"
 
 const closedState = (): CompletionState => ({ open: false })
 

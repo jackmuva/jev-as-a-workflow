@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { extractFileReferences, resolveUserMessage } from "./resolve-message"
+import { extractFileReferences, resolveUserMessage } from "./at-files"
 
 describe("extractFileReferences", () => {
   test("finds file references in text", () => {

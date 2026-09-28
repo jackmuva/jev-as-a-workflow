@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { detectTrigger } from "./detect-trigger"
+import { detectTrigger } from "./completions"
 
 describe("detectTrigger", () => {
   test("detects @ file trigger at start of input", () => {

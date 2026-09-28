@@ -1,5 +1,5 @@
 import type { SelectOption } from "@opentui/core"
-import type { CompletionItem, CompletionKind } from "../../lib/input-completion/types"
+import type { CompletionItem, CompletionKind } from "../../../models/ui"
 import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
 
 const MAX_VISIBLE_ITEMS = 6
