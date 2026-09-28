@@ -1,4 +1,4 @@
-import type { ToolResultPart } from "./format"
+import type { ToolResultPart } from "../ui/lib/format/format"
 
 export type ToolRenderContext = {
   toolName: string

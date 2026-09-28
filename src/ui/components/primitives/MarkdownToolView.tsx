@@ -1,5 +1,5 @@
 import { syntaxStyle } from "../../syntax-style"
-import type { ToolViewProps } from "../../lib/types"
+import type { ToolViewProps } from "../../../models/ui"
 import { ToolFrame } from "./ToolFrame"
 
 type MarkdownToolViewProps = ToolViewProps & {

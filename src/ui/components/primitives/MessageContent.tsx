@@ -5,7 +5,7 @@ import {
   isToolResultError,
   type ToolCallPart,
   type ToolResultPart,
-} from "../../lib/format"
+} from "../../lib/format/format"
 import { AGENT_BORDER_COLOR } from "./ToolFrame"
 
 const formatMessageContent = (message: ModelMessage): string => {

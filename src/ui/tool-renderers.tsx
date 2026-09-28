@@ -1,5 +1,5 @@
 import { createElement, type ComponentType, type ReactNode } from "react"
-import type { ToolViewProps } from "./lib/types"
+import type { ToolViewProps } from "../models/ui"
 import { ApplyPatchToolCallView, ApplyPatchToolResultView } from "./components/tools/ApplyPatchToolView"
 import { AskQuestionToolCallView } from "./components/tools/AskQuestionToolView"
 import { BashToolCallView, BashToolResultView } from "./components/tools/BashToolView"
