@@ -1,23 +1,15 @@
-import type { KeyBinding, TextareaRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { ModelMessage } from "ai"
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format"
+import { resolveUserMessage } from "./lib/input-completion/resolve-message"
+import { ChatInput } from "./components/input/ChatInput"
 import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
-
-const chatKeyBindings: KeyBinding[] = [
-  { name: "return", action: "submit" },
-  { name: "return", shift: true, action: "newline" },
-  { name: "kpenter", action: "submit" },
-  { name: "kpenter", shift: true, action: "newline" },
-  { name: "linefeed", action: "submit" },
-  { name: "linefeed", shift: true, action: "newline" },
-]
 
 type AppProps = {
   initialMessage?: string | null
@@ -27,7 +19,6 @@ type AppProps = {
 export function App({ initialMessage, seedMessages }: AppProps) {
   const { messages, setMessages } = useSessionPersistence(seedMessages)
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
-  const textareaRef = useRef<TextareaRenderable>(null)
   const { height } = useTerminalDimensions()
   const pendingAsk = findPendingAskQuestion(messages)
 
@@ -41,15 +32,13 @@ export function App({ initialMessage, seedMessages }: AppProps) {
     [visibleMessages],
   )
 
-  const handleSubmit = async () => {
-    const text = textareaRef.current?.plainText.trim()
+  const handleSubmit = async (text: string) => {
     if (!text || status === "working") return
 
     setStatus("working")
-    const userMessage: ModelMessage = { role: "user", content: text }
+    const userMessage = await resolveUserMessage(text)
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
-    textareaRef.current?.clear()
 
     await jevLoop(nextMessages, setMessages)
     setStatus("ready")
@@ -101,13 +90,10 @@ export function App({ initialMessage, seedMessages }: AppProps) {
           onSubmit={handleAskQuestionSubmit}
         />
       ) : (
-        <textarea
-          ref={textareaRef}
+        <ChatInput
+          disabled={status === "working"}
           marginY={visibleMessages.length > 0 ? 1 : 0}
-          placeholder="What would you like to do"
-          keyBindings={chatKeyBindings}
           onSubmit={handleSubmit}
-          focused={true}
         />
       )}
     </box>
