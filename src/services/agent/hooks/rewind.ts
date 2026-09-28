@@ -10,7 +10,7 @@ export const rewindState = (checkpoints: Array<{ state: AgentState, options: str
       newState = {
         ...lastCheckpoint!.state,
         selectedTool: lastCheckpoint!.options[0],
-        state: 'REWIND',
+        state: 'EXECUTE',
       };
       return { state: newState, checkpoints: newCheckpoints }
     } else {

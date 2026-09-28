@@ -1,5 +1,4 @@
 import { chmod, mkdir, rm } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import type {
@@ -9,8 +8,9 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthOptions } from '../../models/mcp';
+import { JEV_HOME } from '../../constants';
 
-const AUTH_DIR = join(homedir(), '.jev-workflow-runner', 'mcp-auth');
+const AUTH_DIR = join(JEV_HOME, 'mcp-auth');
 const DEFAULT_CALLBACK_PORT = 33418;
 const CALLBACK_PATH = '/oauth/callback';
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000;

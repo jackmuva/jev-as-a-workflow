@@ -1,10 +1,10 @@
 import { mkdir, readdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { McpTool, McpToolResult } from '../../../models/mcp';
 import { USER_TOOL_SERVER, type UserToolDefinition } from './types';
+import { JEV_HOME } from '../../../constants';
 
-export const USER_TOOLS_DIR = join(homedir(), '.jev-workflow-runner', 'tools');
+export const USER_TOOLS_DIR = join(JEV_HOME, 'tools');
 
 let loaded = false;
 let entries: UserToolDefinition[] = [];

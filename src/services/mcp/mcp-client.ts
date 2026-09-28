@@ -13,8 +13,8 @@ import type {
   McpTool,
   McpToolResult,
 } from '../../models/mcp';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { JEV_HOME } from '../../constants';
 
 const CLIENT_INFO = { name: 'jev-workflow-runner', version: '0.1.0' };
 
@@ -59,7 +59,7 @@ export class McpClientManager {
 
   constructor(private readonly options: McpClientManagerOptions = {}) { }
 
-  async loadConfig(path = join(homedir(), '.jev-workflow-runner', 'mcp.json')) {
+  async loadConfig(path = join(JEV_HOME, 'mcp.json')) {
     const file = Bun.file(path);
     this.config = (await file.exists())
       ? await file.json() as McpConfig

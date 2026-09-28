@@ -13,7 +13,7 @@ describe("rewindState", () => {
     const result = rewindState(checkpoints, baseState)
 
     expect(result.state.selectedTool).toBe("default/d")
-    expect(result.state.state).toBe("REWIND")
+    expect(result.state.state).toBe("EXECUTE")
     expect(result.checkpoints).toHaveLength(2)
     expect(result.checkpoints.at(-1)?.options).toEqual(["default/d"])
   })

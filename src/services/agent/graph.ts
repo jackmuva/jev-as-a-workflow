@@ -28,10 +28,7 @@ const parseToolKey = (key: string): { server: string, name: string } => {
   return { server: key.slice(0, slash), name: key.slice(slash + 1) };
 };
 
-const toolInvocationName = (toolKeyValue: string, server: string, name: string) =>
-  isDefaultToolKey(toolKeyValue) || isUserToolKey(toolKeyValue)
-    ? name
-    : `${server}_${name}`;
+const toolInvocationName = (toolKeyValue: string, server: string, name: string) => isDefaultToolKey(toolKeyValue) || isUserToolKey(toolKeyValue) ? name : `${server}_${name}`;
 
 const generateRequiredToolCall = async ({
   instructions,
@@ -42,7 +39,6 @@ const generateRequiredToolCall = async ({
 }: {
   instructions: string;
   messages: ModelMessage[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tools: Record<string, any>;
   toolName: string;
   maxAttempts?: number;
@@ -74,11 +70,31 @@ const generateRequiredToolCall = async ({
   return undefined;
 };
 
-const buildToolCriteria = (tools: McpTool[]) =>
-  Object.fromEntries(tools.map((t) => [toolKey(t), {
+const buildToolCriteria = (tools: McpTool[]) => {
+  let criteria: {
+    [action: string]: {
+      description: string,
+      inputSchema?: JSONValue
+    }
+  } = Object.fromEntries(tools.map((t) => [toolKey(t), {
     description: t.description ?? 'No description provided',
     inputSchema: t.inputSchema as JSONValue,
   }]));
+
+  criteria = {
+    ...criteria,
+    taskCompleted: {
+      description: "The user's task was completed"
+    },
+    wrongPath: {
+      description: "Based off the given tools, we took the wrong steps. Rewind to the last message"
+    },
+    notPossible: {
+      description: "Based off the given tools, the task is not possible"
+    },
+  }
+  return criteria;
+}
 
 await loadUserTools();
 
@@ -92,51 +108,6 @@ const tools = await listAllTools();
 const toolList = tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
-
-export const evaluationNode = async (state: AgentState, callback: (message: ModelMessage) => void): Promise<AgentState> => {
-  let message: ModelMessage = {
-    role: "assistant",
-    content: "Unable to complete the task with given tools"
-  }
-
-  if (state.state === "END") {
-    callback(message);
-    return { state: "END", messages: [...state.messages, message] };
-  }
-
-  const { answers: completed } = await evaluate({
-    model: 'typesafe-ai/jev',
-    state: [state.messages as JSONValue],
-    questions: {
-      taskCompleted: {
-        type: "choice",
-        instructions: "Is the task in the user\'s last message complete?",
-        criteria: {
-          "taskCompleted": "The user's task was completed",
-          "keepGoing": "We are still in progress to completing the task",
-          "notPossible": "Based off the given tools, the task is not possible",
-          "possibleButWrongSteps": "Based off the given tools, we took the wrong steps. Let's go back and try again",
-        }
-      }
-    },
-  });
-
-  if (completed.taskCompleted.choice === "taskCompleted") {
-    message = {
-      role: "assistant",
-      content: "Task Complete"
-    };
-    callback(message);
-    return { state: "END", messages: [...state.messages, message] };
-  } else if (completed.taskCompleted.choice === "keepGoing") {
-    return state;
-  } else if (completed.taskCompleted.choice === "possibleButWrongSteps") {
-    return { state: "REWIND", messages: [...state.messages] };
-  } else {
-    callback(message);
-    return { state: "END", messages: [...state.messages, message] };
-  }
-}
 
 export const initialNode = async (state: AgentState, callback: (message: ModelMessage) => void): Promise<AgentState> => {
   const { answers } = await evaluate({
@@ -243,7 +214,7 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
   };
 }
 
-export const toolSelectNode = async (
+export const actionSelectNode = async (
   state: AgentState,
   callback: (message: ModelMessage) => void,
 ): Promise<{ state: AgentState, options: string[] }> => {
@@ -261,6 +232,7 @@ export const toolSelectNode = async (
   }
 
   const criteria = buildToolCriteria(availableTools);
+
   const { answers } = await evaluate({
     model: 'typesafe-ai/jev',
     state: [{
@@ -268,46 +240,68 @@ export const toolSelectNode = async (
       messages: state.messages as JSONValue,
     }],
     questions: {
-      selectedTool: {
+      selectedAction: {
         type: 'choice',
-        instructions: 'Which tool should we call next to make progress on the user\'s task?',
+        instructions: 'Which action should we call next?',
         criteria,
       },
     },
   });
 
-  const answer = answers.selectedTool;
-  if (answer?.type !== 'choice') {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'Unable to select a tool for this task.',
-    };
-    callback(message);
-    return {
-      state: { state: 'END', messages: [...state.messages, message] },
-      options: [],
-    };
-  }
-
   const threshold = 1 / (availableTools.length * 2);
-  const probabilities = answer.probabilities ?? { [answer.choice]: 1 };
+  const probabilities = answers.selectedAction.probabilities ?? { [answers.selectedAction.choice]: 1 };
   const options = Object.entries(probabilities)
     .filter(([, probability]) => probability > threshold)
     .sort(([, a], [, b]) => b - a)
     .map(([key]) => key);
 
-  const selectedTool = options[0] ?? answer.choice;
-  const message: ModelMessage = {
+  const selectedAction = options[0] ?? answers.selectedAction.choice;
+  let message: ModelMessage = {
     role: 'assistant',
-    content: `Calling tool: ${selectedTool}`,
+    content: `Running Action: ${selectedAction}`,
   };
   callback(message);
 
+  if (answers.selectedAction.choice === "taskCompleted") {
+    message = {
+      role: "assistant",
+      content: "Task Complete"
+    };
+    callback(message);
+    return {
+      state: {
+        state: "END", messages: [...state.messages, message]
+      },
+      options: [],
+    };
+  } else if (answers.selectedAction.choice === "wrongPath") {
+    message = {
+      role: "assistant",
+      content: "Rewinding to last choice",
+    };
+    callback(message);
+    return {
+      state: {
+        state: "REWIND", messages: [...state.messages, message],
+      },
+      options,
+    };
+  } else if (answers.selectedAction.choice === "notPossible") {
+    message = {
+      role: "assistant",
+      content: "Unable to complete the task with given tools",
+    };
+    callback(message);
+    return {
+      state: { state: "END", messages: [...state.messages, message] },
+      options: [],
+    };
+  }
   return {
     state: {
       state: 'EXECUTE',
       messages: [...state.messages, message],
-      selectedTool,
+      selectedTool: selectedAction,
     },
     options,
   };

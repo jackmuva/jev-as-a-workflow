@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 import { findPendingAskQuestion } from './utils/ask-question-state';
 import type { AgentState } from '../../models/agent';
-import { clarifyTaskNode, createPlanNode, evaluationNode, initialNode, runToolNode, toolSelectNode } from './graph';
+import { clarifyTaskNode, createPlanNode, initialNode, runToolNode, actionSelectNode } from './graph';
 import { compactionHook } from './hooks/compaction';
 import { rewindState } from './hooks/rewind';
 
@@ -31,17 +31,15 @@ export const jevLoop = async (
   let checkpoints: Array<{ state: AgentState, options: string[] }> = [];
   while (i < MAX_ITERATIONS) {
     if (state.state !== "REWIND" && !state.selectedTool) {
-      const { state: newState, options } = await toolSelectNode(state, callback);
+      const { state: newState, options } = await actionSelectNode(state, callback);
       state = newState;
       if (options.length > 0) checkpoints.push({ state: { ...newState }, options });
     }
-    if (state.state === "EXECUTE" || state.state === "REWIND") {
+    if (state.state === "EXECUTE") {
       state = await runToolNode(state, callback);
       state = { ...state, selectedTool: undefined };
       state = await compactionHook(state);
     }
-
-    state = await evaluationNode(state, callback);
 
     if (state.state === "END") {
       return;
@@ -60,4 +58,11 @@ export const jevLoop = async (
     }
     i += 1;
   }
+
+  const message: ModelMessage = {
+    role: "assistant",
+    content: "Unable to complete the task with given tools",
+  };
+  callback(message);
+  return { state: "END", messages: [...state.messages, message] };
 }
