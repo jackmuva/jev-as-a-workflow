@@ -24,10 +24,7 @@ export type CompletionState =
       selectedIndex: number
     }
 
-export type SlashCommandHandler = (context: { clearInput: () => void }) => void
-
-export type SlashCommand = {
+export type SlashCommandDefinition = {
   name: string
   description: string
-  handler?: SlashCommandHandler
 }

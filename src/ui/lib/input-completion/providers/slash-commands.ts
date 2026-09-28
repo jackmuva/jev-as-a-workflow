@@ -1,12 +1,24 @@
-import type { CompletionItem, SlashCommand } from "../types"
+import type { CompletionItem, SlashCommandDefinition } from "../types"
 
-export const SLASH_COMMANDS: SlashCommand[] = [
+export const SLASH_COMMANDS: SlashCommandDefinition[] = [
   {
     name: "clear",
-    description: "Clear the input",
-    handler: ({ clearInput }) => clearInput(),
+    description: "Clear the saved conversation for this workspace",
+  },
+  {
+    name: "resume",
+    description: "Reload the saved conversation from SQLite",
   },
 ]
+
+export type SlashCommandActions = {
+  clearSession: () => void
+  resumeSession: () => void
+}
+
+export type SlashCommandHandlers = SlashCommandActions & {
+  clearInput: () => void
+}
 
 export const getSlashCompletions = (query: string): CompletionItem[] =>
   SLASH_COMMANDS
@@ -19,7 +31,7 @@ export const getSlashCompletions = (query: string): CompletionItem[] =>
       value: command,
     }))
 
-export const findSlashCommand = (text: string): SlashCommand | null => {
+export const findSlashCommand = (text: string): SlashCommandDefinition | null => {
   const trimmed = text.trim()
   if (!trimmed.startsWith("/")) return null
 
@@ -27,4 +39,22 @@ export const findSlashCommand = (text: string): SlashCommand | null => {
   if (!name) return null
 
   return SLASH_COMMANDS.find((command) => command.name === name) ?? null
+}
+
+export const executeSlashCommand = (
+  name: string,
+  handlers: SlashCommandHandlers,
+): boolean => {
+  switch (name) {
+    case "clear":
+      handlers.clearSession()
+      handlers.clearInput()
+      return true
+    case "resume":
+      handlers.resumeSession()
+      handlers.clearInput()
+      return true
+    default:
+      return false
+  }
 }

@@ -8,6 +8,8 @@ type SetMessagesAction = ModelMessage[] | ((previous: ModelMessage[]) => ModelMe
 export type UseSessionPersistenceResult = {
   messages: ModelMessage[];
   setMessages: (update: SetMessagesAction) => void;
+  clearSession: () => void;
+  resumeSession: () => void;
   session: SessionRecord;
 };
 
@@ -38,5 +40,16 @@ export const useSessionPersistence = (
     });
   }, [session.id, store]);
 
-  return { messages, setMessages, session };
+  const clearSession = useCallback(() => {
+    const next = [...seedMessages];
+    store.saveMessages(session.id, next);
+    setMessagesState(next);
+  }, [seedMessages, session.id, store]);
+
+  const resumeSession = useCallback(() => {
+    const saved = store.loadMessages(session.id);
+    setMessagesState([...seedMessages, ...saved]);
+  }, [seedMessages, session.id, store]);
+
+  return { messages, setMessages, clearSession, resumeSession, session };
 };

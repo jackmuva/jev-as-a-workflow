@@ -1,15 +1,17 @@
 import { useTerminalDimensions } from "@opentui/react"
 import type { ModelMessage } from "ai"
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format/format"
 import { resolveUserMessage } from "./lib/input-completion/resolve-message"
+import { CompletionOverlayDialog } from "./components/input/CompletionOverlayDialog"
 import { ChatInput } from "./components/input/ChatInput"
 import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
+import type { CompletionState } from "./lib/input-completion/types"
 
 type AppProps = {
   initialMessage?: string | null
@@ -17,9 +19,10 @@ type AppProps = {
 }
 
 export function App({ initialMessage, seedMessages }: AppProps) {
-  const { messages, setMessages } = useSessionPersistence(seedMessages)
+  const { messages, setMessages, clearSession, resumeSession } = useSessionPersistence(seedMessages)
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
-  const { height } = useTerminalDimensions()
+  const [completion, setCompletion] = useState<CompletionState>({ open: false })
+  const { width, height } = useTerminalDimensions()
   const pendingAsk = findPendingAskQuestion(messages)
 
   const visibleMessages = useMemo(
@@ -31,6 +34,15 @@ export function App({ initialMessage, seedMessages }: AppProps) {
     () => buildToolCallInputMap(visibleMessages),
     [visibleMessages],
   )
+
+  const slashCommandHandlers = useMemo(
+    () => ({ clearSession, resumeSession }),
+    [clearSession, resumeSession],
+  )
+
+  const handleCompletionChange = useCallback((next: CompletionState) => {
+    setCompletion(next)
+  }, [])
 
   const handleSubmit = async (text: string) => {
     if (!text || status === "working") return
@@ -65,7 +77,7 @@ export function App({ initialMessage, seedMessages }: AppProps) {
   }
 
   return (
-    <box flexDirection="column" height={height} padding={1}>
+    <box flexDirection="column" height={height} width="100%" padding={1} position="relative">
       <scrollbox
         flexGrow={1}
         flexShrink={1}
@@ -93,7 +105,18 @@ export function App({ initialMessage, seedMessages }: AppProps) {
         <ChatInput
           disabled={status === "working"}
           marginY={visibleMessages.length > 0 ? 1 : 0}
+          slashCommandHandlers={slashCommandHandlers}
+          onCompletionChange={handleCompletionChange}
           onSubmit={handleSubmit}
+        />
+      )}
+      {completion.open && (
+        <CompletionOverlayDialog
+          kind={completion.trigger.kind}
+          items={completion.items}
+          selectedIndex={completion.selectedIndex}
+          terminalWidth={width}
+          terminalHeight={height}
         />
       )}
     </box>

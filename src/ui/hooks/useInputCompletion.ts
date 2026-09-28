@@ -2,7 +2,11 @@ import type { KeyEvent, TextareaRenderable } from "@opentui/core"
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { detectTrigger } from "../lib/input-completion/detect-trigger"
 import { getCompletions } from "../lib/input-completion/get-completions"
-import { findSlashCommand } from "../lib/input-completion/providers/slash-commands"
+import {
+  executeSlashCommand,
+  findSlashCommand,
+  type SlashCommandActions,
+} from "../lib/input-completion/providers/slash-commands"
 import type { CompletionItem, CompletionState } from "../lib/input-completion/types"
 
 const closedState = (): CompletionState => ({ open: false })
@@ -10,9 +14,14 @@ const closedState = (): CompletionState => ({ open: false })
 type UseInputCompletionOptions = {
   textareaRef: RefObject<TextareaRenderable | null>
   disabled?: boolean
+  slashCommandActions: SlashCommandActions
 }
 
-export const useInputCompletion = ({ textareaRef, disabled = false }: UseInputCompletionOptions) => {
+export const useInputCompletion = ({
+  textareaRef,
+  disabled = false,
+  slashCommandActions,
+}: UseInputCompletionOptions) => {
   const [completion, setCompletion] = useState<CompletionState>(closedState)
   const requestIdRef = useRef(0)
 
@@ -26,9 +35,9 @@ export const useInputCompletion = ({ textareaRef, disabled = false }: UseInputCo
   }, [closeCompletion, textareaRef])
 
   const runSlashCommand = useCallback((item: CompletionItem) => {
-    const command = item.value as { handler?: (context: { clearInput: () => void }) => void }
-    command.handler?.({ clearInput })
-  }, [clearInput])
+    const name = item.id.replace(/^slash:/, "")
+    executeSlashCommand(name, { ...slashCommandActions, clearInput })
+  }, [clearInput, slashCommandActions])
 
   const applyCompletion = useCallback((item: CompletionItem, trigger: CompletionState & { open: true }) => {
     const textarea = textareaRef.current
@@ -36,9 +45,7 @@ export const useInputCompletion = ({ textareaRef, disabled = false }: UseInputCo
 
     if (trigger.trigger.kind === "slash") {
       runSlashCommand(item)
-      if (item.id === "slash:clear") {
-        return
-      }
+      return
     }
 
     const before = textarea.plainText.slice(0, trigger.trigger.startOffset)
@@ -145,13 +152,13 @@ export const useInputCompletion = ({ textareaRef, disabled = false }: UseInputCo
     }
 
     const slashCommand = findSlashCommand(textarea.plainText)
-    if (slashCommand?.handler) {
-      slashCommand.handler({ clearInput })
+    if (slashCommand) {
+      executeSlashCommand(slashCommand.name, { ...slashCommandActions, clearInput })
       return false
     }
 
     return true
-  }, [acceptSelected, clearInput, completion.open, textareaRef])
+  }, [acceptSelected, clearInput, completion.open, slashCommandActions, textareaRef])
 
   useEffect(() => {
     if (disabled) closeCompletion()

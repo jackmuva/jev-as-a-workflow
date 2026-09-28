@@ -41,4 +41,18 @@ describe('SessionStore', () => {
       { role: 'assistant', content: 'second' },
     ]);
   });
+
+  test('clears saved messages when only system messages remain', () => {
+    const store = SessionStore.openInMemory();
+    const session = store.getOrCreateSession('/tmp/project-d');
+    const seed: ModelMessage[] = [{ role: 'system', content: 'rules' }];
+
+    store.saveMessages(session.id, [
+      ...seed,
+      { role: 'user', content: 'hello' },
+    ]);
+    store.saveMessages(session.id, seed);
+
+    expect(store.loadMessages(session.id)).toEqual([]);
+  });
 });
