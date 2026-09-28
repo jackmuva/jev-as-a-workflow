@@ -19,6 +19,7 @@ import {
   listDefaultTools,
 } from './default-tools';
 import { preparePrompt } from './prompt';
+import { compactionHook } from './hooks/compaction';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 
 const toolKey = (tool: McpTool) => `${tool.server}/${tool.name}`;
@@ -93,50 +94,287 @@ const toolList = tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
 
-export const evaluationNode = async (state: AgentState, callback: (message: ModelMessage) => void): Promise<AgentState> => {
-  let message: ModelMessage = {
-    role: "assistant",
-    content: "Unable to complete the task with given tools"
-  }
-
-  if (state.state === "END") {
+const bootstrapToolSelect = async (
+  state: AgentState,
+  callback: (message: ModelMessage) => void,
+): Promise<AgentState> => {
+  const availableTools = await listAllTools();
+  if (availableTools.length === 0) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: 'No tools available to complete this task.',
+    };
     callback(message);
-    return { state: "END", messages: [...state.messages, message] };
+    return { state: 'END', messages: [...state.messages, message] };
   }
 
-  const { answers: completed } = await evaluate({
+  const criteria = buildToolCriteria(availableTools);
+  const { answers } = await evaluate({
     model: 'typesafe-ai/jev',
-    state: [state.messages as JSONValue],
+    state: [{
+      toolsAvailable: availableTools as JSONValue,
+      messages: state.messages as JSONValue,
+    }],
     questions: {
-      taskCompleted: {
-        type: "choice",
-        instructions: "Is the task in the user\'s last message complete?",
-        criteria: {
-          "taskCompleted": "The user's task was completed",
-          "keepGoing": "We are still in progress to completing the task",
-          "notPossible": "Based off the given tools, the task is not possible",
-          "possibleButWrongSteps": "Based off the given tools, we took the wrong steps. Let's go back and try again",
-        }
-      }
+      selectedTool: {
+        type: 'choice',
+        instructions: 'Which tool should we call next to make progress on the user\'s task?',
+        criteria,
+      },
     },
   });
 
-  if (completed.taskCompleted.choice === "taskCompleted") {
-    message = {
-      role: "assistant",
-      content: "Task Complete"
+  const answer = answers.selectedTool;
+  if (answer?.type !== 'choice') {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: 'Unable to select a tool for this task.',
     };
     callback(message);
-    return { state: "END", messages: [...state.messages, message] };
-  } else if (completed.taskCompleted.choice === "keepGoing") {
-    return state;
-  } else if (completed.taskCompleted.choice === "possibleButWrongSteps") {
-    return { state: "REWIND", messages: [...state.messages] };
-  } else {
-    callback(message);
-    return { state: "END", messages: [...state.messages, message] };
+    return { state: 'END', messages: [...state.messages, message] };
   }
-}
+
+  const { selectedTool, toolOptions } = rankToolOptions(answer, availableTools.length);
+  const message: ModelMessage = {
+    role: 'assistant',
+    content: `Calling tool: ${selectedTool}`,
+  };
+  callback(message);
+
+  return {
+    state: 'EXECUTE',
+    messages: [...state.messages, message],
+    selectedTool,
+    toolOptions,
+  };
+};
+
+const rankToolOptions = (
+  answer: { choice: string, probabilities?: Record<string, number> },
+  toolCount: number,
+): { selectedTool: string, toolOptions: string[] } => {
+  const threshold = 1 / (toolCount * 2);
+  const probabilities = answer.probabilities ?? { [answer.choice]: 1 };
+  const toolOptions = Object.entries(probabilities)
+    .filter(([, probability]) => probability > threshold)
+    .sort(([, a], [, b]) => b - a)
+    .map(([key]) => key);
+
+  return {
+    selectedTool: toolOptions[0] ?? answer.choice,
+    toolOptions,
+  };
+};
+
+const evaluateProgressAndPlanNext = async (
+  state: AgentState,
+  callback: (message: ModelMessage) => void,
+): Promise<AgentState> => {
+  let message: ModelMessage = {
+    role: 'assistant',
+    content: 'Unable to complete the task with given tools',
+  };
+
+  if (state.state === 'END') {
+    callback(message);
+    return { state: 'END', messages: [...state.messages, message] };
+  }
+
+  const availableTools = await listAllTools();
+  const { answers } = await evaluate({
+    model: 'typesafe-ai/jev',
+    state: [{
+      toolsAvailable: availableTools as JSONValue,
+      messages: state.messages as JSONValue,
+    }],
+    questions: {
+      taskCompleted: {
+        type: 'choice',
+        instructions: 'Is the task in the user\'s last message complete?',
+        criteria: {
+          taskCompleted: "The user's task was completed",
+          keepGoing: 'We are still in progress to completing the task',
+          notPossible: 'Based off the given tools, the task is not possible',
+          possibleButWrongSteps: "Based off the given tools, we took the wrong steps. Let's go back and try again",
+        },
+      },
+      selectedTool: {
+        type: 'choice',
+        instructions: 'If we should keep going, which tool should we call next to make progress on the user\'s task?',
+        criteria: buildToolCriteria(availableTools),
+      },
+    },
+  });
+
+  const completion = answers.taskCompleted;
+  if (completion?.type !== 'choice') {
+    callback(message);
+    return { state: 'END', messages: [...state.messages, message] };
+  }
+
+  if (completion.choice === 'taskCompleted') {
+    message = {
+      role: 'assistant',
+      content: 'Task Complete',
+    };
+    callback(message);
+    return { state: 'END', messages: [...state.messages, message] };
+  }
+
+  if (completion.choice === 'possibleButWrongSteps') {
+    return { state: 'REWIND', messages: [...state.messages] };
+  }
+
+  if (completion.choice === 'notPossible') {
+    callback(message);
+    return { state: 'END', messages: [...state.messages, message] };
+  }
+
+  const nextTool = answers.selectedTool;
+  if (nextTool?.type !== 'choice') {
+    return { state: 'EXECUTE', messages: state.messages };
+  }
+
+  const { selectedTool, toolOptions } = rankToolOptions(nextTool, availableTools.length);
+  return {
+    state: 'EXECUTE',
+    messages: state.messages,
+    selectedTool,
+    toolOptions,
+  };
+};
+
+const executeSelectedTool = async (
+  state: AgentState,
+  callback: (message: ModelMessage) => void,
+): Promise<AgentState> => {
+  const selectedTool = state.selectedTool;
+  if (!selectedTool) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: 'No tool selected to run.',
+    };
+    callback(message);
+    return { state: 'END', messages: [...state.messages, message] };
+  }
+
+  const availableTools = await listAllTools();
+  const selected = availableTools.find((t) => toolKey(t) === selectedTool);
+  if (!selected) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: `Unknown tool: ${selectedTool}`,
+    };
+    callback(message);
+    return { state: 'END', messages: [...state.messages, message] };
+  }
+
+  const { server, name } = parseToolKey(selectedTool);
+  const toolName = toolInvocationName(selectedTool, server, name);
+  const aiTool = tool({
+    description: selected.description ?? `Call the ${selectedTool} tool`,
+    inputSchema: jsonSchema<Record<string, unknown>>(selected.inputSchema as Record<string, unknown>),
+  });
+
+  const instructions = name === 'message_answer'
+    ? `The user asked a question. Call the ${toolName} tool with a clear, helpful answer based on the conversation and your knowledge.`
+    : `Call the ${toolName} tool with the arguments needed to make progress on the user's task.`;
+
+  const toolCall = await generateRequiredToolCall({
+    instructions,
+    messages: state.messages,
+    tools: { [toolName]: aiTool },
+    toolName,
+  });
+
+  if (!toolCall) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: `Could not determine arguments for ${selectedTool}.`,
+    };
+    callback(message);
+    return { state: 'EXECUTE', messages: [...state.messages, message], selectedTool, toolOptions: state.toolOptions };
+  }
+
+  const toolCallMessage: ModelMessage = {
+    role: 'assistant',
+    content: [{
+      type: 'tool-call',
+      toolCallId: toolCall.toolCallId,
+      toolName: selectedTool,
+      input: toolCall.input,
+    }],
+  };
+  callback(toolCallMessage);
+
+  const toolResult = isDefaultToolKey(selectedTool)
+    ? await executeDefaultTool(name, toolCall.input as Record<string, unknown>)
+    : isUserToolKey(selectedTool)
+      ? await executeUserTool(name, toolCall.input as Record<string, unknown>)
+      : await mcpClient.callTool(server, name, toolCall.input as Record<string, unknown>);
+  const toolResultMessage = mcpClient.toMessage(toolCall.toolCallId, toolResult);
+  callback(toolResultMessage);
+
+  return {
+    state: 'EXECUTE',
+    messages: [...state.messages, toolCallMessage, toolResultMessage],
+    toolOptions: state.toolOptions,
+  };
+};
+
+const ensureCallingToolMessage = (
+  state: AgentState,
+  callback: (message: ModelMessage) => void,
+): AgentState => {
+  const selectedTool = state.selectedTool;
+  if (!selectedTool) return state;
+
+  const expected = `Calling tool: ${selectedTool}`;
+  const lastMessage = state.messages.at(-1);
+  if (lastMessage?.role === 'assistant' && lastMessage.content === expected) {
+    return state;
+  }
+
+  const message: ModelMessage = {
+    role: 'assistant',
+    content: expected,
+  };
+  callback(message);
+  return { ...state, messages: [...state.messages, message] };
+};
+
+/** Runs a tool and evaluates progress in one step (merged tool + evaluate nodes). */
+export const toolNode = async (
+  state: AgentState,
+  callback: (message: ModelMessage) => void,
+): Promise<{ state: AgentState, checkpoint?: { state: AgentState, options: string[] } }> => {
+  let checkpoint: { state: AgentState, options: string[] } | undefined;
+
+  if (state.state !== 'REWIND' && !state.selectedTool) {
+    state = await bootstrapToolSelect(state, callback);
+    if (state.state === 'END') return { state };
+    checkpoint = {
+      state: { ...state },
+      options: state.toolOptions ?? (state.selectedTool ? [state.selectedTool] : []),
+    };
+  } else if (state.state !== 'REWIND' && state.selectedTool) {
+    state = ensureCallingToolMessage(state, callback);
+    checkpoint = {
+      state: { ...state },
+      options: state.toolOptions ?? (state.selectedTool ? [state.selectedTool] : []),
+    };
+  }
+
+  if (state.state === 'EXECUTE' || state.state === 'REWIND') {
+    state = await executeSelectedTool(state, callback);
+    if (state.state === 'END') return { state };
+    state = { ...state, selectedTool: undefined };
+    state = await compactionHook(state);
+  }
+
+  state = await evaluateProgressAndPlanNext(state, callback);
+  return { state, checkpoint };
+};
 
 export const initialNode = async (state: AgentState, callback: (message: ModelMessage) => void): Promise<AgentState> => {
   const { answers } = await evaluate({
@@ -240,153 +478,5 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
   return {
     state: 'DISCOVERY',
     messages: [...state.messages, message],
-  };
-}
-
-export const toolSelectNode = async (
-  state: AgentState,
-  callback: (message: ModelMessage) => void,
-): Promise<{ state: AgentState, options: string[] }> => {
-  const availableTools = await listAllTools();
-  if (availableTools.length === 0) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'No tools available to complete this task.',
-    };
-    callback(message);
-    return {
-      state: { state: 'END', messages: [...state.messages, message] },
-      options: [],
-    };
-  }
-
-  const criteria = buildToolCriteria(availableTools);
-  const { answers } = await evaluate({
-    model: 'typesafe-ai/jev',
-    state: [{
-      toolsAvailable: availableTools as JSONValue,
-      messages: state.messages as JSONValue,
-    }],
-    questions: {
-      selectedTool: {
-        type: 'choice',
-        instructions: 'Which tool should we call next to make progress on the user\'s task?',
-        criteria,
-      },
-    },
-  });
-
-  const answer = answers.selectedTool;
-  if (answer?.type !== 'choice') {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'Unable to select a tool for this task.',
-    };
-    callback(message);
-    return {
-      state: { state: 'END', messages: [...state.messages, message] },
-      options: [],
-    };
-  }
-
-  const threshold = 1 / (availableTools.length * 2);
-  const probabilities = answer.probabilities ?? { [answer.choice]: 1 };
-  const options = Object.entries(probabilities)
-    .filter(([, probability]) => probability > threshold)
-    .sort(([, a], [, b]) => b - a)
-    .map(([key]) => key);
-
-  const selectedTool = options[0] ?? answer.choice;
-  const message: ModelMessage = {
-    role: 'assistant',
-    content: `Calling tool: ${selectedTool}`,
-  };
-  callback(message);
-
-  return {
-    state: {
-      state: 'EXECUTE',
-      messages: [...state.messages, message],
-      selectedTool,
-    },
-    options,
-  };
-}
-
-export const runToolNode = async (
-  state: AgentState,
-  callback: (message: ModelMessage) => void,
-): Promise<AgentState> => {
-  const selectedTool = state.selectedTool;
-  if (!selectedTool) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'No tool selected to run.',
-    };
-    callback(message);
-    return { state: 'END', messages: [...state.messages, message] };
-  }
-
-  const availableTools = await listAllTools();
-  const selected = availableTools.find((t) => toolKey(t) === selectedTool);
-  if (!selected) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: `Unknown tool: ${selectedTool}`,
-    };
-    callback(message);
-    return { state: 'END', messages: [...state.messages, message] };
-  }
-
-  const { server, name } = parseToolKey(selectedTool);
-  const toolName = toolInvocationName(selectedTool, server, name);
-  const aiTool = tool({
-    description: selected.description ?? `Call the ${selectedTool} tool`,
-    inputSchema: jsonSchema<Record<string, unknown>>(selected.inputSchema as Record<string, unknown>),
-  });
-
-  const instructions = name === 'message_answer'
-    ? `The user asked a question. Call the ${toolName} tool with a clear, helpful answer based on the conversation and your knowledge.`
-    : `Call the ${toolName} tool with the arguments needed to make progress on the user's task.`;
-
-  const toolCall = await generateRequiredToolCall({
-    instructions,
-    messages: state.messages,
-    tools: { [toolName]: aiTool },
-    toolName,
-  });
-
-  if (!toolCall) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: `Could not determine arguments for ${selectedTool}.`,
-    };
-    callback(message);
-    return { state: 'EXECUTE', messages: [...state.messages, message], selectedTool };
-  }
-
-  const toolCallMessage: ModelMessage = {
-    role: 'assistant',
-    content: [{
-      type: 'tool-call',
-      toolCallId: toolCall.toolCallId,
-      toolName: selectedTool,
-      input: toolCall.input,
-    }],
-  };
-  callback(toolCallMessage);
-
-  const toolResult = isDefaultToolKey(selectedTool)
-    ? await executeDefaultTool(name, toolCall.input as Record<string, unknown>)
-    : isUserToolKey(selectedTool)
-      ? await executeUserTool(name, toolCall.input as Record<string, unknown>)
-      : await mcpClient.callTool(server, name, toolCall.input as Record<string, unknown>);
-  const toolResultMessage = mcpClient.toMessage(toolCall.toolCallId, toolResult);
-  callback(toolResultMessage);
-
-  return {
-    state: 'EXECUTE',
-    messages: [...state.messages, toolCallMessage, toolResultMessage],
-    selectedTool,
   };
 }
