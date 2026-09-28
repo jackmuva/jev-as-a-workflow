@@ -1,5 +1,6 @@
 import type { SelectOption } from "@opentui/core"
-import { useState } from "react"
+import { useKeyboard } from "@opentui/react"
+import { useEffect, useMemo, useState } from "react"
 import type { AskQuestionInput, AskQuestionItem } from "../../../services/agent/default-tools/ask-question"
 import {
   formatAskQuestionAnswers,
@@ -7,6 +8,12 @@ import {
   isQuestionAnswerComplete,
   type QuestionAnswer,
 } from "../../../services/agent/utils/ask-question-state"
+import {
+  buildQuestionFocusTargets,
+  getNextQuestionFocusTarget,
+  normalizeQuestionFocusTarget,
+  type QuestionFocusTarget,
+} from "./clarify-question-focus"
 import { AGENT_BORDER_COLOR } from "./ToolFrame"
 
 const OTHER_OPTION_ID = "other"
@@ -15,6 +22,7 @@ type QuestionFieldProps = {
   question: AskQuestionItem
   answer: QuestionAnswer
   onAnswerChange: (answer: QuestionAnswer) => void
+  onOtherSelected: () => void
   selectFocused: boolean
   inputFocused: boolean
 }
@@ -23,6 +31,7 @@ const QuestionField = ({
   question,
   answer,
   onAnswerChange,
+  onOtherSelected,
   selectFocused,
   inputFocused,
 }: QuestionFieldProps) => {
@@ -54,6 +63,11 @@ const QuestionField = ({
             customText: String(option.value) === OTHER_OPTION_ID ? answer.customText : "",
           })
         }}
+        onSelect={(_, option) => {
+          if (String(option?.value) === OTHER_OPTION_ID) {
+            onOtherSelected()
+          }
+        }}
       />
       {isOther && (
         <input
@@ -77,6 +91,7 @@ type ClarifyQuestionBoxProps = {
 
 export const ClarifyQuestionBox = ({ input, onSubmit }: ClarifyQuestionBoxProps) => {
   const questions = input.questions
+  const questionIds = useMemo(() => questions.map((question) => question.id), [questions])
   const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>(() =>
     Object.fromEntries(
       questions.map((question) => [
@@ -88,16 +103,28 @@ export const ClarifyQuestionBox = ({ input, onSubmit }: ClarifyQuestionBoxProps)
       ]),
     ),
   )
+  const [focusTarget, setFocusTarget] = useState<QuestionFocusTarget>({
+    kind: "select",
+    questionIndex: 0,
+  })
   const allComplete = questions.every((question) =>
     isQuestionAnswerComplete(question, answers[question.id]),
   )
-  const firstQuestion = questions[0]
-  const firstAnswer = firstQuestion ? answers[firstQuestion.id] : undefined
-  const firstIsOther = firstAnswer?.optionId === OTHER_OPTION_ID
-  const focusFirstInput =
-    !allComplete &&
-    firstIsOther &&
-    firstAnswer.customText.trim().length === 0
+  const focusTargets = useMemo(
+    () => buildQuestionFocusTargets(questionIds.length, answers, questionIds, allComplete),
+    [allComplete, answers, questionIds],
+  )
+
+  useEffect(() => {
+    setFocusTarget((current) => normalizeQuestionFocusTarget(focusTargets, current))
+  }, [focusTargets])
+
+  useKeyboard((key) => {
+    if (key.name !== "tab") return
+    setFocusTarget((current) =>
+      getNextQuestionFocusTarget(focusTargets, current, key.shift),
+    )
+  })
 
   const handleSubmit = () => {
     if (!allComplete) return
@@ -124,8 +151,15 @@ export const ClarifyQuestionBox = ({ input, onSubmit }: ClarifyQuestionBoxProps)
               customText: "",
             }
           }
-          selectFocused={!allComplete && index === 0 && !focusFirstInput}
-          inputFocused={focusFirstInput && index === 0}
+          selectFocused={
+            focusTarget.kind === "select" && focusTarget.questionIndex === index
+          }
+          inputFocused={
+            focusTarget.kind === "other-input" && focusTarget.questionIndex === index
+          }
+          onOtherSelected={() =>
+            setFocusTarget({ kind: "other-input", questionIndex: index })
+          }
           onAnswerChange={(answer) =>
             setAnswers((prev) => ({ ...prev, [question.id]: answer }))
           }
@@ -133,13 +167,13 @@ export const ClarifyQuestionBox = ({ input, onSubmit }: ClarifyQuestionBoxProps)
       ))}
       <text fg={AGENT_BORDER_COLOR}>
         {allComplete
-          ? "Press Enter below to submit your answers"
-          : "Select an option for each question (choose Other to type a custom answer)"}
+          ? "Tab between questions and submit · ↑↓ choose · Enter to select · Enter on submit to send"
+          : "Tab between questions · ↑↓ choose · Enter to select · choose Other to type a custom answer"}
       </text>
       <input
         placeholder={allComplete ? "Press Enter to submit" : "Complete all questions first"}
         width="100%"
-        focused={allComplete}
+        focused={focusTarget.kind === "submit"}
         onSubmit={handleSubmit}
       />
     </box>
