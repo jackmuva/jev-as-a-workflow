@@ -51,7 +51,7 @@ export function App({ initialMessage, seedMessages }: AppProps) {
     setMessages(nextMessages)
     textareaRef.current?.clear()
 
-    await jevLoop(nextMessages, (message) => setMessages((prev) => [...prev, message]))
+    await jevLoop(nextMessages, setMessages)
     setStatus("ready")
   }
 
@@ -71,7 +71,7 @@ export function App({ initialMessage, seedMessages }: AppProps) {
     const nextMessages = [...messages, toolResult]
     setMessages(nextMessages)
 
-    await jevLoop(nextMessages, (message) => setMessages((prev) => [...prev, message]))
+    await jevLoop(nextMessages, setMessages)
     setStatus("ready")
   }
 

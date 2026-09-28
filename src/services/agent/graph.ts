@@ -8,6 +8,7 @@ import {
   type ModelMessage,
   type ToolChoice,
 } from 'ai';
+import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
 import type { AgentState } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
@@ -51,7 +52,7 @@ const generateRequiredToolCall = async ({
     try {
       const prompt = preparePrompt(instructions, messages);
       const result = await generateText({
-        model: 'deepseek/deepseek-v4-flash',
+        model: LLM_MODEL,
         instructions: prompt.instructions,
         messages: prompt.messages,
         tools,
@@ -109,9 +110,9 @@ const toolList = tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
 
-export const initialNode = async (state: AgentState, callback: (message: ModelMessage) => void): Promise<AgentState> => {
+export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const { answers } = await evaluate({
-    model: 'typesafe-ai/jev',
+    model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: tools as JSONValue,
       messages: state.messages as JSONValue
@@ -136,7 +137,6 @@ export const initialNode = async (state: AgentState, callback: (message: ModelMe
       role: 'assistant',
       content: "task out of scope"
     };
-    callback(message)
     return { state: "END", messages: [...state.messages, message] };
   } else if (answers.nextStep.choice === "createPlan") {
     return { state: "PLAN", messages: state.messages };
@@ -153,20 +153,18 @@ export const initialNode = async (state: AgentState, callback: (message: ModelMe
   }
 }
 
-export const createPlanNode = async (state: AgentState, callback: (message: ModelMessage) => void,
-): Promise<AgentState> => {
+export const createPlanNode = async (state: AgentState): Promise<AgentState> => {
   const planPrompt = preparePrompt(
     `You are a planner. Break the user's task into a short numbered list of steps. \n\nWe have the following tools to complete the task:\n${toolList || '(none)'} \n\nRespond with the plan only.`,
     state.messages,
   );
   const { text } = await generateText({
-    model: 'deepseek/deepseek-v4-flash',
+    model: LLM_MODEL,
     instructions: planPrompt.instructions,
     messages: planPrompt.messages,
   });
 
   const message: ModelMessage = { role: 'assistant', content: text }
-  callback(message);
 
   return {
     state: "EXECUTE",
@@ -174,10 +172,7 @@ export const createPlanNode = async (state: AgentState, callback: (message: Mode
   };
 }
 
-export const clarifyTaskNode = async (
-  state: AgentState,
-  callback: (message: ModelMessage) => void,
-): Promise<AgentState> => {
+export const clarifyTaskNode = async (state: AgentState): Promise<AgentState> => {
   const toolCall = await generateRequiredToolCall({
     instructions: `You are helping clarify an ambiguous user task before work begins. Ask 1-3 focused follow-up questions to resolve what is unclear.
 
@@ -192,7 +187,6 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
       role: 'assistant',
       content: 'I need a bit more detail to proceed. Could you clarify your request?',
     };
-    callback(message);
     return { state: 'DISCOVERY', messages: [...state.messages, message] };
   }
 
@@ -206,8 +200,6 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
       input,
     }],
   };
-  callback(message);
-
   return {
     state: 'DISCOVERY',
     messages: [...state.messages, message],
@@ -216,7 +208,6 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
 
 export const actionSelectNode = async (
   state: AgentState,
-  callback: (message: ModelMessage) => void,
 ): Promise<{ state: AgentState, options: string[] }> => {
   const availableTools = await listAllTools();
   if (availableTools.length === 0) {
@@ -224,7 +215,6 @@ export const actionSelectNode = async (
       role: 'assistant',
       content: 'No tools available to complete this task.',
     };
-    callback(message);
     return {
       state: { state: 'END', messages: [...state.messages, message] },
       options: [],
@@ -234,7 +224,7 @@ export const actionSelectNode = async (
   const criteria = buildToolCriteria(availableTools);
 
   const { answers } = await evaluate({
-    model: 'typesafe-ai/jev',
+    model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: availableTools as JSONValue,
       messages: state.messages as JSONValue,
@@ -256,30 +246,23 @@ export const actionSelectNode = async (
     .map(([key]) => key);
 
   const selectedAction = options[0] ?? answers.selectedAction.choice;
-  let message: ModelMessage = {
-    role: 'assistant',
-    content: `Running Action: ${selectedAction}`,
-  };
-  callback(message);
 
   if (answers.selectedAction.choice === "taskCompleted") {
-    message = {
+    const message: ModelMessage = {
       role: "assistant",
-      content: "Task Complete"
+      content: "Task Complete",
     };
-    callback(message);
     return {
       state: {
-        state: "END", messages: [...state.messages, message]
+        state: "END", messages: [...state.messages, message],
       },
       options: [],
     };
   } else if (answers.selectedAction.choice === "wrongPath") {
-    message = {
+    const message: ModelMessage = {
       role: "assistant",
       content: "Rewinding to last choice",
     };
-    callback(message);
     return {
       state: {
         state: "REWIND", messages: [...state.messages, message],
@@ -287,11 +270,10 @@ export const actionSelectNode = async (
       options,
     };
   } else if (answers.selectedAction.choice === "notPossible") {
-    message = {
+    const message: ModelMessage = {
       role: "assistant",
       content: "Unable to complete the task with given tools",
     };
-    callback(message);
     return {
       state: { state: "END", messages: [...state.messages, message] },
       options: [],
@@ -300,24 +282,20 @@ export const actionSelectNode = async (
   return {
     state: {
       state: 'EXECUTE',
-      messages: [...state.messages, message],
+      messages: state.messages,
       selectedTool: selectedAction,
     },
     options,
   };
 }
 
-export const runToolNode = async (
-  state: AgentState,
-  callback: (message: ModelMessage) => void,
-): Promise<AgentState> => {
+export const runToolNode = async (state: AgentState): Promise<AgentState> => {
   const selectedTool = state.selectedTool;
   if (!selectedTool) {
     const message: ModelMessage = {
       role: 'assistant',
       content: 'No tool selected to run.',
     };
-    callback(message);
     return { state: 'END', messages: [...state.messages, message] };
   }
 
@@ -328,7 +306,6 @@ export const runToolNode = async (
       role: 'assistant',
       content: `Unknown tool: ${selectedTool}`,
     };
-    callback(message);
     return { state: 'END', messages: [...state.messages, message] };
   }
 
@@ -355,7 +332,6 @@ export const runToolNode = async (
       role: 'assistant',
       content: `Could not determine arguments for ${selectedTool}.`,
     };
-    callback(message);
     return { state: 'EXECUTE', messages: [...state.messages, message], selectedTool };
   }
 
@@ -368,7 +344,6 @@ export const runToolNode = async (
       input: toolCall.input,
     }],
   };
-  callback(toolCallMessage);
 
   const toolResult = isDefaultToolKey(selectedTool)
     ? await executeDefaultTool(name, toolCall.input as Record<string, unknown>)
@@ -376,7 +351,6 @@ export const runToolNode = async (
       ? await executeUserTool(name, toolCall.input as Record<string, unknown>)
       : await mcpClient.callTool(server, name, toolCall.input as Record<string, unknown>);
   const toolResultMessage = mcpClient.toMessage(toolCall.toolCallId, toolResult);
-  callback(toolResultMessage);
 
   return {
     state: 'EXECUTE',

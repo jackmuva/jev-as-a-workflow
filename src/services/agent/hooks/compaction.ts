@@ -1,16 +1,24 @@
 import { generateText, type ModelMessage } from 'ai';
+import {
+  COMPACTION_CONTEXT_WINDOW,
+  COMPACTION_TOKEN_THRESHOLD,
+  LLM_MODEL,
+} from '../../../constants';
 import type { AgentState } from '../../../models/agent';
 
 export type CompactionOptions = {
   /** Number of recent assistant/tool messages to retain. Default 4. */
   keepAssistantMessages?: number;
-  /** Minimum total messages before compaction runs. Default 8. */
-  minMessagesToCompact?: number;
+  /** Model context window in tokens. Defaults to COMPACTION_CONTEXT_WINDOW. */
+  contextWindow?: number;
+  /** Fraction of context window that triggers compaction (0–1). Defaults to COMPACTION_TOKEN_THRESHOLD. */
+  tokenThreshold?: number;
 };
 
 const DEFAULT_OPTIONS: Required<CompactionOptions> = {
   keepAssistantMessages: 4,
-  minMessagesToCompact: 8,
+  contextWindow: COMPACTION_CONTEXT_WINDOW,
+  tokenThreshold: COMPACTION_TOKEN_THRESHOLD,
 };
 
 const truncate = (text: string, max: number): string =>
@@ -43,6 +51,15 @@ const messageToText = (message: ModelMessage): string => {
 
   return prefix + parts.join('\n');
 };
+
+/** Rough token estimate (~4 chars per token). */
+const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+
+const estimateMessageTokens = (message: ModelMessage): number =>
+  estimateTokens(messageToText(message));
+
+const estimateMessagesTokens = (messages: ModelMessage[]): number =>
+  messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
 
 const getRetainedIndices = (
   messages: ModelMessage[],
@@ -81,12 +98,13 @@ export const compactMessages = async (
   messages: ModelMessage[],
   options: CompactionOptions = {},
 ): Promise<ModelMessage[]> => {
-  const { keepAssistantMessages, minMessagesToCompact } = {
+  const { keepAssistantMessages, contextWindow, tokenThreshold } = {
     ...DEFAULT_OPTIONS,
     ...options,
   };
 
-  if (messages.length < minMessagesToCompact) {
+  const tokenLimit = contextWindow * tokenThreshold;
+  if (estimateMessagesTokens(messages) < tokenLimit) {
     return messages;
   }
 
@@ -99,7 +117,7 @@ export const compactMessages = async (
 
   const transcript = toSummarize.map(messageToText).join('\n\n');
   const { text: summary } = await generateText({
-    model: 'deepseek/deepseek-v4.1-flash',
+    model: LLM_MODEL,
     instructions:
       'Summarize the following conversation history concisely. Preserve the user\'s goal, key decisions, important tool results, and progress made. Omit redundant details.',
     prompt: transcript,

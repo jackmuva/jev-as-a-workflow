@@ -9,8 +9,13 @@ const MAX_ITERATIONS = 50;
 
 export const jevLoop = async (
   messages: ModelMessage[],
-  callback: (message: ModelMessage) => void,
+  callback: (messages: ModelMessage[]) => void,
 ) => {
+  const sync = (state: AgentState) => {
+    callback(state.messages);
+    return state;
+  };
+
   let i = 0;
   let state: AgentState = { state: 'START', messages: [...messages] };
 
@@ -18,11 +23,11 @@ export const jevLoop = async (
     return;
   }
 
-  state = await initialNode(state, callback);
+  state = sync(await initialNode(state));
   if (state.state === "PLAN") {
-    state = await createPlanNode(state, callback);
+    state = sync(await createPlanNode(state));
   } else if (state.state === "DISCOVERY") {
-    state = await clarifyTaskNode(state, callback);
+    state = sync(await clarifyTaskNode(state));
     if (findPendingAskQuestion(state.messages)) {
       return;
     }
@@ -31,14 +36,14 @@ export const jevLoop = async (
   let checkpoints: Array<{ state: AgentState, options: string[] }> = [];
   while (i < MAX_ITERATIONS) {
     if (state.state !== "REWIND" && !state.selectedTool) {
-      const { state: newState, options } = await actionSelectNode(state, callback);
-      state = newState;
+      const { state: newState, options } = await actionSelectNode(state);
+      state = sync(newState);
       if (options.length > 0) checkpoints.push({ state: { ...newState }, options });
     }
     if (state.state === "EXECUTE") {
-      state = await runToolNode(state, callback);
+      state = sync(await runToolNode(state));
       state = { ...state, selectedTool: undefined };
-      state = await compactionHook(state);
+      state = sync(await compactionHook(state));
     }
 
     if (state.state === "END") {
@@ -46,23 +51,26 @@ export const jevLoop = async (
     } else if (state.state === "REWIND") {
       const { state: rewoundState, checkpoints: rewoundCheckpoints } = rewindState(checkpoints, state);
       checkpoints = rewoundCheckpoints;
-      state = rewoundState;
+      state = sync(rewoundState);
       if (checkpoints.length === 0) {
-        const message: ModelMessage = {
-          role: "assistant",
-          content: "Unable to complete the task with given tools"
-        }
-        callback(message);
-        return { state: "END", messages: [...state.messages, message] };
+        state = sync({
+          state: "END",
+          messages: [...state.messages, {
+            role: "assistant",
+            content: "Unable to complete the task with given tools",
+          }],
+        });
+        return;
       }
     }
     i += 1;
   }
 
-  const message: ModelMessage = {
-    role: "assistant",
-    content: "Unable to complete the task with given tools",
-  };
-  callback(message);
-  return { state: "END", messages: [...state.messages, message] };
+  sync({
+    state: "END",
+    messages: [...state.messages, {
+      role: "assistant",
+      content: "Unable to complete the task with given tools",
+    }],
+  });
 }
