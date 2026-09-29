@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setCapabilitySelection } from '../capabilities';
-import { discoverSkills, frontLoadMessages, listSkills, loadSkillContent } from './front-load';
+import { discoverSkills, frontLoadMessages, getSkillsDirs, listSkills, loadSkillContent } from './front-load';
 
 const tempRoot = join(import.meta.dir, '__fixtures__', 'skills-front-load');
 
@@ -37,6 +37,25 @@ describe('frontLoadMessages skills', () => {
 
     const content = await loadSkillContent('demo-skill');
     expect(content).toContain('Follow these detailed steps.');
+  });
+
+  test('getSkillsDirs includes the workspace skills directory first', () => {
+    expect(getSkillsDirs(tempRoot)[0]).toBe(join(tempRoot, 'skills'));
+  });
+
+  test('frontLoadMessages discovers workspace skills without a custom skillsDirs override', async () => {
+    const skillsDir = join(tempRoot, 'skills', 'workspace-skill');
+    await mkdir(skillsDir, { recursive: true });
+    await writeFile(
+      join(skillsDir, 'SKILL.md'),
+      '---\nname: workspace-skill\ndescription: Workspace-local skill.\n---\nBody',
+    );
+
+    const messages = await frontLoadMessages(tempRoot, { skillsDirs: getSkillsDirs(tempRoot) });
+    const catalog = messages.map((message) => String(message.content)).join('\n');
+
+    expect(catalog).toContain('Workspace-local skill.');
+    expect(await loadSkillContent('workspace-skill')).toContain('Body');
   });
 
   test('discovers skills from a custom directory', async () => {
