@@ -8,12 +8,17 @@ import {
 describe("slash commands", () => {
   test("lists slash command completions", () => {
     const items = getSlashCompletions("")
-    expect(items.map((item) => item.label)).toEqual(["/clear", "/resume", "/configure"])
+    expect(items.map((item) => item.label)).toEqual(["/clear", "/configure", "/resume"])
   })
 
   test("filters completions by prefix", () => {
     const items = getSlashCompletions("re")
     expect(items.map((item) => item.label)).toEqual(["/resume"])
+  })
+
+  test("filters completions with fuzzy matching", () => {
+    const items = getSlashCompletions("cng")
+    expect(items.map((item) => item.label)).toEqual(["/configure"])
   })
 
   test("finds slash command from input", () => {

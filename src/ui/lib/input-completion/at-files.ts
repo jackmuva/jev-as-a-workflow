@@ -1,4 +1,5 @@
 import type { CompletionItem } from "../../../models/ui"
+import { fuzzyContains, fuzzyScore } from "./fuzzy-match"
 import { readdir } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { readFile } from "node:fs/promises"
@@ -107,8 +108,25 @@ export const invalidateFileIndex = () => {
 
 export const filterFiles = (files: string[], query: string, limit = 15): string[] => {
   const normalized = query.toLowerCase()
-  const matches = files.filter((file) => file.toLowerCase().includes(normalized))
-  matches.sort((left, right) => scoreFileMatch(left, normalized) - scoreFileMatch(right, normalized))
+  let matches = files.filter((file) => fuzzyContains(file, normalized))
+  const hasPrefixMatch = matches.some((file) => fuzzyScore(file, normalized) === 0)
+  if (hasPrefixMatch) {
+    matches = matches.filter((file) => fuzzyScore(file, normalized) === 0)
+  } else {
+    const hasSubstringMatch = matches.some((file) => fuzzyScore(file, normalized) === 1)
+    if (hasSubstringMatch) {
+      matches = matches.filter((file) => fuzzyScore(file, normalized) === 1)
+    }
+  }
+  matches.sort((left, right) => {
+    const scoreA = fuzzyScore(left, normalized)
+    const scoreB = fuzzyScore(right, normalized)
+    if (scoreA !== scoreB) return scoreA - scoreB
+    const pathA = scoreFileMatch(left, normalized)
+    const pathB = scoreFileMatch(right, normalized)
+    if (pathA !== pathB) return pathA - pathB
+    return left.localeCompare(right)
+  })
   return matches.slice(0, limit)
 }
 
