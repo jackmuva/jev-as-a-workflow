@@ -12,6 +12,7 @@ import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
 import type { AgentState } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
+import { isCapabilityEnabled } from './capabilities';
 import { askQuestionTool, type AskQuestionInput } from './default-tools/ask-question';
 import { createPlanTool, type CreatePlanInput, wrapPlanToolMessages } from './default-tools/create-plan';
 import {
@@ -20,6 +21,7 @@ import {
   isDefaultToolKey,
   listDefaultTools,
 } from './default-tools';
+import { listSkills } from './hooks/front-load';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 
@@ -101,17 +103,18 @@ const buildToolCriteria = (tools: McpTool[]) => {
 await loadUserTools();
 
 const listAllTools = async () => [
-  ...listDefaultTools(),
-  ...listUserTools(),
-  ...(await mcpClient.listTools()),
+  // load_skill is useless when every skill is disabled
+  ...listDefaultTools().filter((t) => t.name !== 'load_skill' || listSkills().length > 0),
+  ...listUserTools().filter((t) => isCapabilityEnabled('userTools', t.name)),
+  ...(await mcpClient.listTools()).filter((t) => isCapabilityEnabled('mcpServers', t.server)),
 ];
 
-const tools = await listAllTools();
-const toolList = tools
+const formatToolList = (tools: McpTool[]) => tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
 
 export const initialNode = async (state: AgentState): Promise<AgentState> => {
+  const tools = await listAllTools();
   const { answers } = await evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
@@ -155,6 +158,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
 }
 
 export const createPlanNode = async (state: AgentState): Promise<AgentState> => {
+  const toolList = formatToolList(await listAllTools());
   const planInstructions = `You are a planner. Break the user's task into a short numbered list of steps.
 
 We have the following tools to complete the task:

@@ -6,9 +6,9 @@ import {
 } from "./slash-commands"
 
 describe("slash commands", () => {
-  test("lists clear and resume completions", () => {
+  test("lists slash command completions", () => {
     const items = getSlashCompletions("")
-    expect(items.map((item) => item.label)).toEqual(["/clear", "/resume"])
+    expect(items.map((item) => item.label)).toEqual(["/clear", "/resume", "/configure"])
   })
 
   test("filters completions by prefix", () => {
@@ -22,12 +22,13 @@ describe("slash commands", () => {
     expect(findSlashCommand("hello")).toBeNull()
   })
 
-  test("executes clear and resume handlers", () => {
+  test("executes clear, resume, and configure handlers", () => {
     const calls: string[] = []
     const handlers = {
       clearInput: () => calls.push("clearInput"),
       clearSession: () => calls.push("clearSession"),
       resumeSession: () => calls.push("resumeSession"),
+      configureCapabilities: () => calls.push("configureCapabilities"),
     }
 
     expect(executeSlashCommand("clear", handlers)).toBe(true)
@@ -36,6 +37,10 @@ describe("slash commands", () => {
     calls.length = 0
     expect(executeSlashCommand("resume", handlers)).toBe(true)
     expect(calls).toEqual(["resumeSession", "clearInput"])
+
+    calls.length = 0
+    expect(executeSlashCommand("configure", handlers)).toBe(true)
+    expect(calls).toEqual(["configureCapabilities", "clearInput"])
 
     expect(executeSlashCommand("unknown", handlers)).toBe(false)
   })

@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'path';
 import { JEV_HOME } from '../../../constants';
+import { isCapabilityEnabled } from '../capabilities';
 
 export const AGENTS_MD_FILENAME = 'AGENTS.md';
 export const SKILL_FILENAME = 'SKILL.md';
@@ -131,7 +132,8 @@ export const frontLoadMessages = async (
     }
   }
 
-  const skills = await discoverSkills(options?.skillsDirs);
+  const skills = (await discoverSkills(options?.skillsDirs))
+    .filter((skill) => isCapabilityEnabled('skills', skill.name));
   skillRegistry = new Map(skills.map((skill) => [skill.name, skill]));
   if (skills.length > 0) {
     messages.push({ role: 'system', content: formatSkillsCatalog(skills) });

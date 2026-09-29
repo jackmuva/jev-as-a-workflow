@@ -11,13 +11,15 @@ export type UseSessionPersistenceResult = {
   clearSession: () => void;
   getSessions: () => SessionRecord[];
   resumeSession: (sessionId: string) => void;
+  replaceSeedMessages: (seed: ModelMessage[]) => void;
   session: SessionRecord;
 };
 
 export const useSessionPersistence = (
-  seedMessages: ModelMessage[],
+  initialSeedMessages: ModelMessage[],
   workspacePath = process.cwd(),
 ): UseSessionPersistenceResult => {
+  const [seedMessages, setSeedMessages] = useState(initialSeedMessages);
   const store = useMemo(() => SessionStore.open(), []);
   const workspace = useMemo(() => resolve(workspacePath), [workspacePath]);
   const [session, setSession] = useState<SessionRecord>(() =>
@@ -55,5 +57,22 @@ export const useSessionPersistence = (
     setMessagesState([...seedMessages, ...saved]);
   }, [seedMessages, store, workspace]);
 
-  return { messages, setMessages, clearSession, getSessions, resumeSession, session };
+  // System messages are never persisted, so they are all seed messages.
+  const replaceSeedMessages = useCallback((seed: ModelMessage[]) => {
+    setSeedMessages(seed);
+    setMessagesState((previous) => [
+      ...seed,
+      ...previous.filter((message) => message.role !== 'system'),
+    ]);
+  }, []);
+
+  return {
+    messages,
+    setMessages,
+    clearSession,
+    getSessions,
+    resumeSession,
+    replaceSeedMessages,
+    session,
+  };
 };

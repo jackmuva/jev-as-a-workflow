@@ -9,11 +9,16 @@ export const SLASH_COMMANDS: SlashCommandDefinition[] = [
     name: "resume",
     description: "Choose a saved session to resume",
   },
+  {
+    name: "configure",
+    description: "Choose which skills, MCPs, and user tools are enabled",
+  },
 ]
 
 export type SlashCommandActions = {
   clearSession: () => void
   resumeSession: () => void
+  configureCapabilities: () => void
 }
 
 export type SlashCommandHandlers = SlashCommandActions & {
@@ -52,6 +57,10 @@ export const executeSlashCommand = (
       return true
     case "resume":
       handlers.resumeSession()
+      handlers.clearInput()
+      return true
+    case "configure":
+      handlers.configureCapabilities()
       handlers.clearInput()
       return true
     default:

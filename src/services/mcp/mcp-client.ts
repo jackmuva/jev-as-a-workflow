@@ -133,6 +133,10 @@ export class McpClientManager {
     await client.close();
   }
 
+  listServers() {
+    return [...this.clients.keys()];
+  }
+
   async listTools(): Promise<McpTool[]> {
     if (this.toolCache) return this.toolCache;
 

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { discoverSkills, frontLoadMessages, loadSkillContent } from './front-load';
+import { setCapabilitySelection } from '../capabilities';
+import { discoverSkills, frontLoadMessages, listSkills, loadSkillContent } from './front-load';
 
 const tempRoot = join(import.meta.dir, '__fixtures__', 'skills-front-load');
 
@@ -52,5 +53,22 @@ describe('frontLoadMessages skills', () => {
       description: 'Run lint before committing.',
       path: join(skillsDir, 'SKILL.md'),
     }]);
+  });
+
+  test('only front-loads enabled skills', async () => {
+    for (const name of ['kept-skill', 'dropped-skill']) {
+      const dir = join(tempRoot, 'skills', name);
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name} description\n---\nBody`);
+    }
+
+    setCapabilitySelection({ skills: ['kept-skill'], mcpServers: [], userTools: [] });
+    const messages = await frontLoadMessages(tempRoot, { skillsDirs: [join(tempRoot, 'skills')] });
+    const catalog = messages.map((message) => String(message.content)).join('\n');
+
+    expect(catalog).toContain('kept-skill description');
+    expect(catalog).not.toContain('dropped-skill description');
+    expect(listSkills().map((skill) => skill.name)).toEqual(['kept-skill']);
+    expect(await loadSkillContent('dropped-skill')).toBeNull();
   });
 });

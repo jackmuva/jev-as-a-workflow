@@ -13,3 +13,11 @@ export type UserToolDefinition = {
   inputSchema: Record<string, unknown>;
   execute: (args: Record<string, unknown>) => Promise<string>;
 };
+
+export type CapabilityKind = 'skills' | 'mcpServers' | 'userTools';
+
+export type CapabilitySelection = Record<CapabilityKind, string[]>;
+
+export type CapabilityCatalog = Record<CapabilityKind, Array<{ name: string, description?: string }>>;
+
+
