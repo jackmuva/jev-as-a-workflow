@@ -105,6 +105,9 @@ const buildToolCriteria = (tools: McpTool[]) => {
     notPossible: {
       description: "Based off the given tools, the task is not possible"
     },
+    outOfScope: {
+      description: "The task is outside of the capabilities given the tools"
+    },
   }
   return criteria;
 }
@@ -121,37 +124,6 @@ const listAllTools = async () => [
 const formatToolList = (tools: McpTool[]) => tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
-
-export const initialNode = async (state: AgentState): Promise<AgentState> => {
-  const tools = await listAllTools();
-  const { answers } = await evaluate({
-    model: SYSTEM_ONE_MODEL,
-    state: [{
-      toolsAvailable: tools as JSONValue,
-      messages: toModelMessages(state.messages) as JSONValue
-    }],
-    questions: {
-      nextStep: {
-        type: "choice",
-        instructions: "Based off the user's last ask and the tools given, can we proceed?",
-        criteria: {
-          proceed: "The task can be handled with the available tools.",
-          outOfScope: "The task is outside of the capabilities given the tools"
-        }
-      }
-    },
-  });
-
-  if (answers.nextStep.choice === "outOfScope") {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: "task out of scope"
-    };
-    return { state: "END", messages: [...state.messages, jevMessage(message)] };
-  }
-
-  return { state: "EXECUTE", messages: state.messages };
-}
 
 export const actionSelectNode = async (
   state: AgentState,
@@ -220,6 +192,15 @@ export const actionSelectNode = async (
     const message: ModelMessage = {
       role: "assistant",
       content: "Unable to complete the task with given tools",
+    };
+    return {
+      state: { state: "END", messages: [...state.messages, jevMessage(message)] },
+      options: [],
+    };
+  } else if (answers.selectedAction.choice === "outOfScope") {
+    const message: ModelMessage = {
+      role: "assistant",
+      content: "task out of scope",
     };
     return {
       state: { state: "END", messages: [...state.messages, jevMessage(message)] },
