@@ -1,5 +1,4 @@
 import { useTerminalDimensions } from "@opentui/react"
-import type { ModelMessage } from "ai"
 import { useCallback, useMemo, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import {
@@ -10,6 +9,7 @@ import {
 } from "../services/agent/capabilities"
 import { frontLoadMessages } from "../services/agent/hooks/front-load"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
+import { jevMessage } from "../services/agent/utils/jev-message"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format/format"
 import { CompletionOverlayDialog } from "./components/input/CompletionOverlayDialog"
@@ -21,11 +21,11 @@ import { MessageContent } from "./components/primitives/MessageContent"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
 import type { CompletionState } from "../models/ui"
 import { resolveUserMessage } from "./lib/input-completion/at-files"
-import type { CapabilityCatalog, CapabilitySelection } from "../models/agent"
+import type { CapabilityCatalog, CapabilitySelection, JevMessage } from "../models/agent"
 
 type AppProps = {
   initialMessage?: string | null
-  seedMessages: ModelMessage[]
+  seedMessages: JevMessage[]
   capabilityCatalog: CapabilityCatalog
 }
 
@@ -50,7 +50,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   const pendingAsk = findPendingAskQuestion(messages)
 
   const visibleMessages = useMemo(
-    () => messages.filter((message) => message.role !== "system"),
+    () => messages.filter(({ message }) => message.role !== "system"),
     [messages],
   )
 
@@ -77,7 +77,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
 
   const handleCapabilityConfirm = useCallback(async (selection: CapabilitySelection) => {
     setCapabilitySelection(selection)
-    replaceSeedMessages(await frontLoadMessages())
+    replaceSeedMessages((await frontLoadMessages()).map((message) => jevMessage(message)))
     setCapabilityPickerOpen(false)
   }, [replaceSeedMessages])
 
@@ -100,7 +100,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
 
     setStatus("working")
     const userMessage = await resolveUserMessage(text)
-    const nextMessages = [...messages, userMessage]
+    const nextMessages = [...messages, jevMessage(userMessage)]
     setMessages(nextMessages)
 
     await jevLoop(nextMessages, setMessages)
@@ -111,7 +111,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     if (!pendingAsk || status === "working") return
 
     setStatus("working")
-    const toolResult: ModelMessage = {
+    const toolResult = jevMessage({
       role: "tool",
       content: [{
         type: "tool-result",
@@ -119,7 +119,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
         toolName: "AskQuestion",
         output: { type: "text", value: answersText },
       }],
-    }
+    })
     const nextMessages = [...messages, toolResult]
     setMessages(nextMessages)
 

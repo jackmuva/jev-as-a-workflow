@@ -3,11 +3,12 @@ import { createRoot } from "@opentui/react"
 import { App } from "./ui/App"
 import type { CapabilityCatalog } from "./services/agent/capabilities"
 import { discoverSkills, frontLoadMessages } from "./services/agent/hooks/front-load"
+import { jevMessage } from "./services/agent/utils/jev-message"
 import { listUserTools, loadUserTools } from "./services/agent/user-tools/loader"
 import { mcpClient } from "./services/mcp/mcp-client"
 
 let initialMessage: null | string = null
-const seedMessages = await frontLoadMessages()
+const seedMessages = (await frontLoadMessages()).map((message) => jevMessage(message))
 
 console.log("Connecting MCPs...")
 try {

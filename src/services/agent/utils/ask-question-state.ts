@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { JevMessage } from "../../../models/agent";
 import type { AskQuestionInput, AskQuestionItem } from "../default-tools/ask-question";
 
 export type PendingAskQuestion = {
@@ -27,11 +27,11 @@ const normalizeAskQuestionInput = (input: unknown): AskQuestionInput => {
 };
 
 export const findPendingAskQuestion = (
-  messages: ModelMessage[],
+  messages: JevMessage[],
 ): PendingAskQuestion | null => {
   let pending: PendingAskQuestion | null = null;
 
-  for (const message of messages) {
+  for (const { message } of messages) {
     if (message.role === "assistant" && Array.isArray(message.content)) {
       for (const part of message.content) {
         if (part.type === "tool-call" && part.toolName === "AskQuestion") {

@@ -1,22 +1,22 @@
-import type { ModelMessage } from 'ai';
+import type { JevMessage } from '../../models/agent';
 import { resolve } from 'node:path';
 import { useCallback, useMemo, useState } from 'react';
 import { SessionStore, type SessionRecord } from '../../services/session/store';
 
-type SetMessagesAction = ModelMessage[] | ((previous: ModelMessage[]) => ModelMessage[]);
+type SetMessagesAction = JevMessage[] | ((previous: JevMessage[]) => JevMessage[]);
 
 export type UseSessionPersistenceResult = {
-  messages: ModelMessage[];
+  messages: JevMessage[];
   setMessages: (update: SetMessagesAction) => void;
   clearSession: () => void;
   getSessions: () => SessionRecord[];
   resumeSession: (sessionId: string) => void;
-  replaceSeedMessages: (seed: ModelMessage[]) => void;
+  replaceSeedMessages: (seed: JevMessage[]) => void;
   session: SessionRecord;
 };
 
 export const useSessionPersistence = (
-  initialSeedMessages: ModelMessage[],
+  initialSeedMessages: JevMessage[],
   workspacePath = process.cwd(),
 ): UseSessionPersistenceResult => {
   const [seedMessages, setSeedMessages] = useState(initialSeedMessages);
@@ -26,7 +26,7 @@ export const useSessionPersistence = (
     store.getOrCreateSession(workspace),
   );
 
-  const [messages, setMessagesState] = useState<ModelMessage[]>(() => {
+  const [messages, setMessagesState] = useState<JevMessage[]>(() => {
     const saved = store.loadMessages(session.id);
     return [...seedMessages, ...saved];
   });
@@ -58,11 +58,11 @@ export const useSessionPersistence = (
   }, [seedMessages, store, workspace]);
 
   // System messages are never persisted, so they are all seed messages.
-  const replaceSeedMessages = useCallback((seed: ModelMessage[]) => {
+  const replaceSeedMessages = useCallback((seed: JevMessage[]) => {
     setSeedMessages(seed);
     setMessagesState((previous) => [
       ...seed,
-      ...previous.filter((message) => message.role !== 'system'),
+      ...previous.filter(({ message }) => message.role !== 'system'),
     ]);
   }, []);
 

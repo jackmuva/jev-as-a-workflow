@@ -9,7 +9,7 @@ import {
   type ToolChoice,
 } from 'ai';
 import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
-import type { AgentState } from '../../models/agent';
+import type { AgentState, JevMessage } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
 import { isCapabilityEnabled } from './capabilities';
@@ -24,6 +24,7 @@ import {
 import { listSkills } from './hooks/front-load';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
+import { jevMessage, toModelMessages } from './utils/jev-message';
 
 const toolKey = (tool: McpTool) => `${tool.server}/${tool.name}`;
 
@@ -43,7 +44,7 @@ const generateRequiredToolCall = async ({
   forceRequired = true,
 }: {
   instructions: string;
-  messages: ModelMessage[];
+  messages: JevMessage[];
   tools: Record<string, any>;
   toolName: string;
   maxAttempts?: number;
@@ -119,7 +120,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
     model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: tools as JSONValue,
-      messages: state.messages as JSONValue
+      messages: toModelMessages(state.messages) as JSONValue
     }],
     questions: {
       nextStep: {
@@ -141,7 +142,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
       role: 'assistant',
       content: "task out of scope"
     };
-    return { state: "END", messages: [...state.messages, message] };
+    return { state: "END", messages: [...state.messages, jevMessage(message)] };
   } else if (answers.nextStep.choice === "createPlan") {
     return { state: "PLAN", messages: state.messages };
   } else if (answers.nextStep.choice === "answerQuestion") {
@@ -191,7 +192,7 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
       role: 'assistant',
       content: 'Could not create a plan for this task.',
     };
-    return { state: 'EXECUTE', messages: [...state.messages, message] };
+    return { state: 'EXECUTE', messages: [...state.messages, jevMessage(message)] };
   }
 
   const input = toolCall.input as CreatePlanInput;
@@ -199,7 +200,7 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
 
   return {
     state: 'EXECUTE',
-    messages: [...state.messages, toolCallMessage, toolResultMessage],
+    messages: [...state.messages, jevMessage(toolCallMessage), jevMessage(toolResultMessage)],
   };
 }
 
@@ -218,7 +219,7 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
       role: 'assistant',
       content: 'I need a bit more detail to proceed. Could you clarify your request?',
     };
-    return { state: 'DISCOVERY', messages: [...state.messages, message] };
+    return { state: 'DISCOVERY', messages: [...state.messages, jevMessage(message)] };
   }
 
   const input = toolCall.input as AskQuestionInput;
@@ -233,7 +234,7 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
   };
   return {
     state: 'DISCOVERY',
-    messages: [...state.messages, message],
+    messages: [...state.messages, jevMessage(message)],
   };
 }
 
@@ -247,7 +248,7 @@ export const actionSelectNode = async (
       content: 'No tools available to complete this task.',
     };
     return {
-      state: { state: 'END', messages: [...state.messages, message] },
+      state: { state: 'END', messages: [...state.messages, jevMessage(message)] },
       options: [],
     };
   }
@@ -258,7 +259,7 @@ export const actionSelectNode = async (
     model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: availableTools as JSONValue,
-      messages: state.messages as JSONValue,
+      messages: toModelMessages(state.messages) as JSONValue,
     }],
     questions: {
       selectedAction: {
@@ -285,7 +286,7 @@ export const actionSelectNode = async (
     };
     return {
       state: {
-        state: "END", messages: [...state.messages, message],
+        state: "END", messages: [...state.messages, jevMessage(message)],
       },
       options: [],
     };
@@ -296,7 +297,7 @@ export const actionSelectNode = async (
     };
     return {
       state: {
-        state: "REWIND", messages: [...state.messages, message],
+        state: "REWIND", messages: [...state.messages, jevMessage(message)],
       },
       options,
     };
@@ -306,7 +307,7 @@ export const actionSelectNode = async (
       content: "Unable to complete the task with given tools",
     };
     return {
-      state: { state: "END", messages: [...state.messages, message] },
+      state: { state: "END", messages: [...state.messages, jevMessage(message)] },
       options: [],
     };
   }
@@ -315,6 +316,7 @@ export const actionSelectNode = async (
       state: 'EXECUTE',
       messages: state.messages,
       selectedTool: selectedAction,
+      probabilities,
     },
     options,
   };
@@ -327,7 +329,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
       role: 'assistant',
       content: 'No tool selected to run.',
     };
-    return { state: 'END', messages: [...state.messages, message] };
+    return { state: 'END', messages: [...state.messages, jevMessage(message)] };
   }
 
   const availableTools = await listAllTools();
@@ -337,7 +339,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
       role: 'assistant',
       content: `Unknown tool: ${selectedTool}`,
     };
-    return { state: 'END', messages: [...state.messages, message] };
+    return { state: 'END', messages: [...state.messages, jevMessage(message)] };
   }
 
   const { server, name } = parseToolKey(selectedTool);
@@ -363,7 +365,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
       role: 'assistant',
       content: `Could not determine arguments for ${selectedTool}.`,
     };
-    return { state: 'EXECUTE', messages: [...state.messages, message], selectedTool };
+    return { ...state, state: 'EXECUTE', messages: [...state.messages, jevMessage(message)] };
   }
 
   const toolCallMessage: ModelMessage = {
@@ -385,7 +387,12 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
 
   return {
     state: 'EXECUTE',
-    messages: [...state.messages, toolCallMessage, toolResultMessage],
+    messages: [
+      ...state.messages,
+      jevMessage(toolCallMessage, state.probabilities),
+      jevMessage(toolResultMessage),
+    ],
     selectedTool,
+    probabilities: state.probabilities,
   };
 }

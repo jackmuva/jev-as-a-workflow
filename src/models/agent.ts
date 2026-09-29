@@ -1,10 +1,20 @@
 import type { ModelMessage } from "ai";
 
+export type ChoiceProbabilities = { [choice: string]: number };
+
+/** A ModelMessage plus UI-only metadata. Only `message` is ever sent to an LLM. */
+export type JevMessage = {
+  message: ModelMessage,
+  probabilities?: ChoiceProbabilities,
+}
+
 export type STATE = "START" | "DISCOVERY" | "PLAN" | "EXECUTE" | "REWIND" | "END";
 export type AgentState = {
   state: STATE,
-  messages: ModelMessage[],
+  messages: JevMessage[],
   selectedTool?: string,
+  /** Action-select probabilities that led to `selectedTool`; attached to its tool-call message. */
+  probabilities?: ChoiceProbabilities,
 }
 
 export type UserToolDefinition = {

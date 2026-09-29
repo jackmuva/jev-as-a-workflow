@@ -1,4 +1,5 @@
 import type { ModelMessage } from "ai"
+import type { JevMessage } from "../../../models/agent"
 
 export type ToolResultPart = Extract<
   NonNullable<ModelMessage["content"]>[number],
@@ -22,10 +23,10 @@ export const formatToolResultText = (part: ToolResultPart): string => {
 export const isToolResultError = (part: ToolResultPart): boolean =>
   part.output.type === "error-text"
 
-export const buildToolCallInputMap = (messages: ModelMessage[]): Map<string, { toolName: string; input: unknown }> => {
+export const buildToolCallInputMap = (messages: JevMessage[]): Map<string, { toolName: string; input: unknown }> => {
   const map = new Map<string, { toolName: string; input: unknown }>()
 
-  for (const message of messages) {
+  for (const { message } of messages) {
     if (message.role !== "assistant" || !Array.isArray(message.content)) continue
     for (const part of message.content) {
       if (part.type !== "tool-call") continue

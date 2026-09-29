@@ -1,9 +1,12 @@
 import type { ModelMessage } from 'ai';
+import type { JevMessage } from '../../models/agent';
+import { toModelMessages } from './utils/jev-message';
 
 export const preparePrompt = (
   instructions: string,
-  messages: ModelMessage[],
+  jevMessages: JevMessage[],
 ): { instructions: string; messages: ModelMessage[] } => {
+  const messages = toModelMessages(jevMessages);
   const systemTexts = messages
     .filter((message) => message.role === 'system')
     .map((message) => message.role !== 'system' ? '' : message.content)

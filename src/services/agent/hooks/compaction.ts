@@ -4,7 +4,8 @@ import {
   COMPACTION_TOKEN_THRESHOLD,
   LLM_MODEL,
 } from '../../../constants';
-import type { AgentState } from '../../../models/agent';
+import type { AgentState, JevMessage } from '../../../models/agent';
+import { jevMessage } from '../utils/jev-message';
 
 export type CompactionOptions = {
   /** Number of recent assistant/tool messages to retain. Default 4. */
@@ -63,26 +64,26 @@ const messageToText = (message: ModelMessage, options: MessageTextOptions = {}):
 /** Rough token estimate (~3 chars per token; conservative for code/JSON). */
 const estimateTokens = (text: string): number => Math.ceil(text.length / 3);
 
-const estimateMessageTokens = (message: ModelMessage): number =>
+const estimateMessageTokens = ({ message }: JevMessage): number =>
   estimateTokens(messageToText(message));
 
-export const estimateMessagesTokens = (messages: ModelMessage[]): number =>
+export const estimateMessagesTokens = (messages: JevMessage[]): number =>
   messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
 
 const getRetainedIndices = (
-  messages: ModelMessage[],
+  messages: JevMessage[],
   keepAssistantCount: number,
 ): Set<number> => {
   const retained = new Set<number>();
 
   for (let i = 0; i < messages.length; i++) {
-    if (messages[i]?.role === 'system') {
+    if (messages[i]?.message.role === 'system') {
       retained.add(i);
     }
   }
 
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
+    const message = messages[i]?.message;
     if (message?.role === 'user') {
       retained.add(i);
       break;
@@ -91,7 +92,7 @@ const getRetainedIndices = (
 
   let count = 0;
   for (let i = messages.length - 1; i >= 0 && count < keepAssistantCount; i--) {
-    const message = messages[i];
+    const message = messages[i]?.message;
     if (!message) continue;
     if (message.role === 'assistant' || message.role === 'tool') {
       retained.add(i);
@@ -103,9 +104,9 @@ const getRetainedIndices = (
 };
 
 export const compactMessages = async (
-  messages: ModelMessage[],
+  messages: JevMessage[],
   options: CompactionOptions = {},
-): Promise<ModelMessage[]> => {
+): Promise<JevMessage[]> => {
   const { keepAssistantMessages, contextWindow, tokenThreshold } = {
     ...DEFAULT_OPTIONS,
     ...options,
@@ -124,7 +125,7 @@ export const compactMessages = async (
   }
 
   const transcript = toSummarize
-    .map((message) => messageToText(message, { truncateToolResults: 2_000 }))
+    .map(({ message }) => messageToText(message, { truncateToolResults: 2_000 }))
     .join('\n\n');
   const { text: summary } = await generateText({
     model: LLM_MODEL,
@@ -133,14 +134,14 @@ export const compactMessages = async (
     prompt: transcript,
   });
 
-  const summaryMessage: ModelMessage = {
+  const summaryMessage = jevMessage({
     role: 'assistant',
     content: `[Conversation summary]\n${summary}`,
-  };
+  });
 
   const kept = messages.filter((_, index) => retained.has(index));
-  const systemMessages = kept.filter((message) => message.role === 'system');
-  const otherKept = kept.filter((message) => message.role !== 'system');
+  const systemMessages = kept.filter(({ message }) => message.role === 'system');
+  const otherKept = kept.filter(({ message }) => message.role !== 'system');
   return [...systemMessages, summaryMessage, ...otherKept];
 };
 

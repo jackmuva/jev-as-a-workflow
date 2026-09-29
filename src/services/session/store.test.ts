@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { ModelMessage } from 'ai';
+import type { JevMessage } from '../../models/agent';
 import { SessionStore } from './store';
 
 describe('SessionStore', () => {
@@ -14,10 +14,10 @@ describe('SessionStore', () => {
   test('persists non-system messages in order', () => {
     const store = SessionStore.openInMemory();
     const session = store.getOrCreateSession('/tmp/project-b');
-    const seed: ModelMessage[] = [{ role: 'system', content: 'rules' }];
-    const conversation: ModelMessage[] = [
-      { role: 'user', content: 'hello' },
-      { role: 'assistant', content: 'hi there' },
+    const seed: JevMessage[] = [{ message: { role: 'system', content: 'rules' } }];
+    const conversation: JevMessage[] = [
+      { message: { role: 'user', content: 'hello' } },
+      { message: { role: 'assistant', content: 'hi there' } },
     ];
 
     store.saveMessages(session.id, [...seed, ...conversation]);
@@ -30,15 +30,15 @@ describe('SessionStore', () => {
     const store = SessionStore.openInMemory();
     const session = store.getOrCreateSession('/tmp/project-c');
 
-    store.saveMessages(session.id, [{ role: 'user', content: 'first' }]);
+    store.saveMessages(session.id, [{ message: { role: 'user', content: 'first' } }]);
     store.saveMessages(session.id, [
-      { role: 'user', content: 'first' },
-      { role: 'assistant', content: 'second' },
+      { message: { role: 'user', content: 'first' } },
+      { message: { role: 'assistant', content: 'second' } },
     ]);
 
     expect(store.loadMessages(session.id)).toEqual([
-      { role: 'user', content: 'first' },
-      { role: 'assistant', content: 'second' },
+      { message: { role: 'user', content: 'first' } },
+      { message: { role: 'assistant', content: 'second' } },
     ]);
   });
 
@@ -48,8 +48,8 @@ describe('SessionStore', () => {
     const first = store.createSession(workspace);
     const second = store.createSession(workspace);
 
-    store.saveMessages(first.id, [{ role: 'user', content: 'first session' }]);
-    store.saveMessages(second.id, [{ role: 'user', content: 'second session' }]);
+    store.saveMessages(first.id, [{ message: { role: 'user', content: 'first session' } }]);
+    store.saveMessages(second.id, [{ message: { role: 'user', content: 'second session' } }]);
 
     const sessions = store.listSessions(workspace);
 
@@ -58,14 +58,26 @@ describe('SessionStore', () => {
     expect(sessions[1]?.id).toBe(first.id);
   });
 
+  test('loads messages saved before JevMessage', () => {
+    const store = SessionStore.openInMemory();
+    const session = store.getOrCreateSession('/tmp/project-legacy');
+    const legacy = { role: 'user', content: 'old' };
+    (store as unknown as { db: { run: (sql: string, params: unknown[]) => void } }).db.run(
+      'INSERT INTO messages (session_id, position, payload) VALUES (?, ?, ?)',
+      [session.id, 0, JSON.stringify(legacy)],
+    );
+
+    expect(store.loadMessages(session.id)).toEqual([{ message: legacy }] as JevMessage[]);
+  });
+
   test('clears saved messages when only system messages remain', () => {
     const store = SessionStore.openInMemory();
     const session = store.getOrCreateSession('/tmp/project-d');
-    const seed: ModelMessage[] = [{ role: 'system', content: 'rules' }];
+    const seed: JevMessage[] = [{ message: { role: 'system', content: 'rules' } }];
 
     store.saveMessages(session.id, [
       ...seed,
-      { role: 'user', content: 'hello' },
+      { message: { role: 'user', content: 'hello' } },
     ]);
     store.saveMessages(session.id, seed);
 

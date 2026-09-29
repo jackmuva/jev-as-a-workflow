@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { join } from 'node:path';
 import { JEV_HOME } from '../../constants';
+import type { JevMessage } from '../../models/agent';
 
 const SESSION_DB_PATH = join(JEV_HOME, 'sessions.db');
 
@@ -43,8 +44,14 @@ const initSchema = (db: Database) => {
 
 const createSessionId = () => crypto.randomUUID();
 
-const deriveTitle = (messages: ModelMessage[]): string | null => {
-  const firstUser = messages.find((message) => message.role === 'user');
+// Sessions saved before JevMessage stored bare ModelMessages.
+const parseMessage = (payload: string): JevMessage => {
+  const parsed = JSON.parse(payload) as JevMessage | ModelMessage;
+  return 'message' in parsed ? parsed : { message: parsed };
+};
+
+const deriveTitle = (messages: JevMessage[]): string | null => {
+  const firstUser = messages.find(({ message }) => message.role === 'user')?.message;
   if (!firstUser) return null;
 
   const text = typeof firstUser.content === 'string'
@@ -151,7 +158,7 @@ export class SessionStore {
     return this.createSession(workspacePath);
   }
 
-  loadMessages(sessionId: string): ModelMessage[] {
+  loadMessages(sessionId: string): JevMessage[] {
     const rows = this.db.query(`
       SELECT payload
       FROM messages
@@ -159,11 +166,11 @@ export class SessionStore {
       ORDER BY position ASC
     `).all(sessionId) as Array<{ payload: string }>;
 
-    return rows.map((row) => JSON.parse(row.payload) as ModelMessage);
+    return rows.map((row) => parseMessage(row.payload));
   }
 
-  saveMessages(sessionId: string, messages: ModelMessage[]): void {
-    const conversation = messages.filter((message) => message.role !== 'system');
+  saveMessages(sessionId: string, messages: JevMessage[]): void {
+    const conversation = messages.filter(({ message }) => message.role !== 'system');
     const title = deriveTitle(conversation);
     const now = Date.now();
 

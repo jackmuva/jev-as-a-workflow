@@ -1,4 +1,5 @@
 import type { ModelMessage } from "ai"
+import type { JevMessage } from "../../../models/agent"
 import { renderToolCall, renderToolResult } from "../../tool-renderers"
 import {
   formatToolResultText,
@@ -6,7 +7,8 @@ import {
   type ToolCallPart,
   type ToolResultPart,
 } from "../../lib/format/format"
-import { AGENT_BORDER_COLOR } from "./ToolFrame"
+import { ChoiceProbabilities } from "./ChoiceProbabilities"
+import { AGENT_BORDER_COLOR, ToolFrameKindContext } from "./ToolFrame"
 
 const formatMessageContent = (message: ModelMessage): string => {
   if (typeof message.content === "string") return message.content
@@ -44,16 +46,16 @@ const hasOnlyToolCalls = (message: ModelMessage): boolean => {
 }
 
 type MessageContentProps = {
-  message: ModelMessage
+  message: JevMessage
   toolCallInputs: Map<string, { toolName: string; input: unknown }>
 }
 
-export const MessageContent = ({ message, toolCallInputs }: MessageContentProps) => {
+export const MessageContent = ({ message: { message, probabilities }, toolCallInputs }: MessageContentProps) => {
   const isAgent = message.role === "assistant" || message.role === "tool"
 
   if (message.role === "tool" && Array.isArray(message.content)) {
     return (
-      <>
+      <ToolFrameKindContext.Provider value="output">
         {message.content.map((part, index) => {
           if (part.type !== "tool-result") return null
           const toolResult = part as ToolResultPart
@@ -72,27 +74,31 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
             </box>
           )
         })}
-      </>
+      </ToolFrameKindContext.Provider>
     )
   }
 
   if (hasOnlyToolCalls(message) && Array.isArray(message.content)) {
     return (
-      <>
+      <ToolFrameKindContext.Provider value="call">
         {message.content.map((part, index) => {
           if (part.type !== "tool-call") return null
           const toolCall = part as ToolCallPart
+          const choices = probabilities ? (
+            <ChoiceProbabilities probabilities={probabilities} selected={toolCall.toolName} />
+          ) : null
 
           if (
             toolCall.toolName === "AskQuestion"
             || toolCall.toolName === "CreatePlan"
             || toolCall.toolName === "default/message_answer"
           ) {
-            return null
+            return choices && <box key={toolCall.toolCallId ?? index}>{choices}</box>
           }
 
           return (
             <box key={toolCall.toolCallId ?? index}>
+              {choices}
               {renderToolCall({
                 toolName: toolCall.toolName,
                 toolCallId: toolCall.toolCallId,
@@ -102,7 +108,7 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
             </box>
           )
         })}
-      </>
+      </ToolFrameKindContext.Provider>
     )
   }
 

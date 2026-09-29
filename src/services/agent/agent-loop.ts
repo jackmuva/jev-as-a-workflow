@@ -1,15 +1,15 @@
-import type { ModelMessage } from 'ai';
 import { findPendingAskQuestion } from './utils/ask-question-state';
-import type { AgentState } from '../../models/agent';
+import type { AgentState, JevMessage } from '../../models/agent';
 import { clarifyTaskNode, createPlanNode, initialNode, runToolNode, actionSelectNode } from './graph';
 import { compactionHook } from './hooks/compaction';
 import { rewindState } from './hooks/rewind';
+import { jevMessage } from './utils/jev-message';
 
 const MAX_ITERATIONS = 50;
 
 export const jevLoop = async (
-  messages: ModelMessage[],
-  callback: (messages: ModelMessage[]) => void,
+  messages: JevMessage[],
+  callback: (messages: JevMessage[]) => void,
 ) => {
   const sync = (state: AgentState) => {
     callback(state.messages);
@@ -45,7 +45,7 @@ export const jevLoop = async (
     }
     if (state.state === "EXECUTE") {
       state = sync(await runToolNode(state));
-      state = { ...state, selectedTool: undefined };
+      state = { ...state, selectedTool: undefined, probabilities: undefined };
       state = sync(await compactionHook(state));
     }
 
@@ -58,10 +58,10 @@ export const jevLoop = async (
       if (checkpoints.length === 0) {
         state = sync({
           state: "END",
-          messages: [...state.messages, {
+          messages: [...state.messages, jevMessage({
             role: "assistant",
             content: "Unable to complete the task with given tools",
-          }],
+          })],
         });
         return;
       }
@@ -71,9 +71,9 @@ export const jevLoop = async (
 
   sync({
     state: "END",
-    messages: [...state.messages, {
+    messages: [...state.messages, jevMessage({
       role: "assistant",
       content: "Unable to complete the task with given tools",
-    }],
+    })],
   });
 }
