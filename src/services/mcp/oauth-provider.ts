@@ -107,7 +107,7 @@ const openBrowser = (url: string) => {
 };
 
 /**
- * Persists OAuth state per MCP server under ~/.jev-workflow-runner/mcp-auth and
+ * Persists OAuth state per MCP server under ~/.jaaw/mcp-auth and
  * completes the authorization-code flow through a localhost redirect.
  */
 export class FileOAuthProvider implements OAuthClientProvider {
@@ -132,7 +132,7 @@ export class FileOAuthProvider implements OAuthClientProvider {
 
   get clientMetadata(): OAuthClientMetadata {
     return {
-      client_name: 'jev-workflow-runner',
+      client_name: 'jaaw',
       redirect_uris: [this.redirectUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],

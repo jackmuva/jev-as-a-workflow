@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 if (-not $Version) { $Version = "latest" }
 if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\jev" }
 if (-not $BinName) { $BinName = "jev" }
-if (-not $Repo) { $Repo = "jackmuva/jev-workflow-runner" }
+if (-not $Repo) { $Repo = "jackmuva/jev-as-a-workflow" }
 
 function Resolve-ReleaseTag {
     param([string]$RequestedVersion)
@@ -32,7 +32,7 @@ $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
     }
 }
 
-$asset = "jev-workflow-runner-windows-$arch.exe"
+$asset = "jaaw-windows-$arch.exe"
 $tag = Resolve-ReleaseTag -RequestedVersion $Version
 $baseUrl = "https://github.com/$Repo/releases/download/$tag"
 $assetUrl = "$baseUrl/$asset"
@@ -80,4 +80,4 @@ if ($userPath -notlike "*$InstallDir*") {
 
 Write-Host ""
 Write-Host "Installed $BinName to $InstallDir\$BinName.exe"
-Write-Host "Run '$BinName' to start Jev Workflow Runner."
+Write-Host "Run '$BinName' to start JaaW."

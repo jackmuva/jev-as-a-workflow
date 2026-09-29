@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const JEV_HOME = join(homedir(), '.jev-workflow-runner');
+export const JEV_HOME = join(homedir(), '.jaaw');
 
 export const COMPACTION_CONTEXT_WINDOW = 32_000;
 

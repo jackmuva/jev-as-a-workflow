@@ -1,6 +1,6 @@
-# Jev Workflow Runner
+# JaaW
 
-Jev Workflow Runner is a terminal-based (TUI) application built on [OpenTUI](https://github.com/msmps/create-tui) that connects to MCP (Model Context Protocol) clients and renders a conversational agent interface.
+JaaW (Jev as a workflow) is a terminal-based (TUI) application built on [OpenTUI](https://github.com/msmps/create-tui) that connects to MCP (Model Context Protocol) clients and renders a conversational agent interface.
 
 ## Features
 
@@ -19,19 +19,19 @@ Jev Workflow Runner is a terminal-based (TUI) application built on [OpenTUI](htt
 Install the latest release with curl (Linux and macOS):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-workflow-runner/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.sh | sh
 ```
 
 Install a specific version:
 
 ```bash
-JEV_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-workflow-runner/main/install.sh | sh
+JEV_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.sh | sh
 ```
 
 On Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/jackmuva/jev-workflow-runner/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.ps1 | iex
 ```
 
 The installer downloads a standalone binary and installs it as `jev` (by default to `~/.local/bin` on Unix). No Bun runtime is required on the target machine.
@@ -41,11 +41,11 @@ The installer downloads a standalone binary and installs it as `jev` (by default
 Create your config directory and MCP config:
 
 ```bash
-mkdir -p ~/.jev-workflow-runner
-# Add ~/.jev-workflow-runner/mcp.json with your MCP server configuration
+mkdir -p ~/.jaaw
+# Add ~/.jaaw/mcp.json with your MCP server configuration
 ```
 
-Optional local skills can be placed in `~/.jev-workflow-runner/skills/`.
+Optional local skills can be placed in `~/.jaaw/skills/`.
 
 ## Usage
 
@@ -68,7 +68,7 @@ Build a local standalone binary:
 
 ```bash
 bun run build
-./jev-workflow-runner
+./jaaw
 ```
 
 Build release binaries for all supported platforms:

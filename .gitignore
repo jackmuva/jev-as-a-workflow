@@ -9,7 +9,7 @@ out
 dist
 *.tgz
 # compiled executable
-jev-workflow-runner
+jaaw
 
 # code coverage
 coverage

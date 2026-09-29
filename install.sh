@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${JEV_REPO:-jackmuva/jev-workflow-runner}"
+REPO="${JEV_REPO:-jackmuva/jev-as-a-workflow}"
 VERSION="${JEV_VERSION:-latest}"
 INSTALL_DIR="${JEV_INSTALL_DIR:-${HOME}/.local/bin}"
 BIN_NAME="${JEV_BIN_NAME:-jev}"
@@ -14,7 +14,7 @@ Environment variables:
   JEV_VERSION      Release tag to install (default: latest)
   JEV_INSTALL_DIR  Directory for the binary (default: ~/.local/bin)
   JEV_BIN_NAME     Installed command name (default: jev)
-  JEV_REPO         GitHub repository (default: jackmuva/jev-workflow-runner)
+  JEV_REPO         GitHub repository (default: jackmuva/jev-as-a-workflow)
 EOF
 }
 
@@ -98,7 +98,7 @@ if [[ "$OS" == "windows" ]]; then
   exit 1
 fi
 
-ASSET="jev-workflow-runner-${OS}-${ARCH}"
+ASSET="jaaw-${OS}-${ARCH}"
 if detect_musl; then
   ASSET="${ASSET}-musl"
 fi
@@ -140,4 +140,4 @@ esac
 
 echo
 echo "Installed ${BIN_NAME} to ${INSTALL_DIR}/${BIN_NAME}"
-echo "Run '${BIN_NAME}' to start Jev Workflow Runner."
+echo "Run '${BIN_NAME}' to start JaaW."

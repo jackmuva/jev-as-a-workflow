@@ -21,6 +21,6 @@ describe("resolveUserMessage", () => {
     expect(typeof message.content).toBe("string")
     expect(message.content).toContain("explain @README.md")
     expect(message.content).toContain("[Attached: README.md]")
-    expect(message.content).toContain("Jev Workflow Runner")
+    expect(message.content).toContain("JaaW")
   })
 })

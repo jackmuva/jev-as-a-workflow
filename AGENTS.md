@@ -1,4 +1,4 @@
-# Jev Workflow Runner — Agent Guide
+# JaaW — Agent Guide
 
 This document tells AI coding agents (and other contributors) how to work in this
 repository effectively. It sits alongside the project `README.md` (user-facing
@@ -17,7 +17,7 @@ Key properties:
   (`@opentui/core`, `@opentui/react`), `@modelcontextprotocol/sdk`, and the Vercel
   `ai` SDK.
 - **TUI renderer** — OpenTUI provides the interactive terminal experience.
-- **App config** — a `config.json` in `JEV_HOME` (`~/.jev-workflow-runner`)
+- **App config** — a `config.json` in `JEV_HOME` (`~/.jaaw`)
   drives the app. It exposes values such as `aiGatewayApiKey` and `llmModel`,
   which are loaded at startup and surfaced as environment variables.
 - **Configurable LLM model** — the model used by the agent is read from the
