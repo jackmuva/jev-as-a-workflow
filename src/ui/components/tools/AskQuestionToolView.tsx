@@ -1,29 +1,74 @@
 import type { ToolViewProps } from "../../../models/ui"
-import { asRecord, callTitle } from "../../lib/format/utils"
-import { ListToolView } from "../primitives/ListToolView"
+import { asRecord } from "../../lib/format/utils"
+import { USER_INPUT_BORDER_COLOR } from "../primitives/ToolFrame"
 
-export const AskQuestionToolCallView = (props: ToolViewProps) => {
-  const record = asRecord(props.input)
-  const questions = record?.questions
-  const prompts = Array.isArray(questions)
-    ? questions
-      .map((question) => {
-        if (question && typeof question === "object" && "prompt" in question) {
-          const prompt = (question as { prompt?: unknown }).prompt
-          return typeof prompt === "string" ? prompt : undefined
-        }
-        return undefined
-      })
-      .filter((prompt): prompt is string => Boolean(prompt))
-    : undefined
+const MUTED_FG = "#565f89"
+const ACCENT_FG = "#7aa2f7"
+
+const readPrompts = (input: unknown): string[] => {
+  const questions = asRecord(input)?.questions
+  if (!Array.isArray(questions)) return []
+
+  return questions
+    .map((question) => {
+      const record = asRecord(question)
+      const prompt = record?.prompt ?? record?.question
+      return typeof prompt === "string" ? prompt : undefined
+    })
+    .filter((prompt): prompt is string => Boolean(prompt))
+}
+
+const splitAnswerLine = (line: string, prompts: string[]) => {
+  const prompt = prompts.find((candidate) => line.startsWith(`${candidate}: `))
+  if (prompt) return { prompt, answer: line.slice(prompt.length + 2) }
+
+  const separator = line.indexOf(": ")
+  return separator === -1
+    ? { prompt: undefined, answer: line }
+    : { prompt: line.slice(0, separator), answer: line.slice(separator + 2) }
+}
+
+export const AskQuestionToolResultView = (props: ToolViewProps) => {
+  const prompts = readPrompts(props.input)
+  const lines = props.text.split("\n").filter((line) => line.trim())
 
   return (
-    <ListToolView
-      {...props}
-      toolName={callTitle(props.toolName)}
-      items={prompts ?? ["Clarifying question"]}
-      subtitle="awaiting answer"
-      text=""
-    />
+    <box
+      border={true}
+      borderColor={USER_INPUT_BORDER_COLOR}
+      paddingLeft={1}
+      paddingRight={1}
+      marginBottom={1}
+      width="75%"
+      flexDirection="column"
+      flexShrink={0}
+    >
+      <text fg={USER_INPUT_BORDER_COLOR}>Your answers</text>
+      {lines.map((line, index) => {
+        const { prompt, answer } = splitAnswerLine(line, prompts)
+        return (
+          <text key={index}>
+            {prompt ? <span fg={MUTED_FG}>{`${prompt} `}</span> : null}
+            {answer}
+          </text>
+        )
+      })}
+    </box>
+  )
+}
+
+export const AskQuestionToolCallView = (props: ToolViewProps) => {
+  const prompts = readPrompts(props.input)
+  const count = prompts.length
+
+  return (
+    <box flexDirection="column" marginBottom={1} width="100%">
+      <text fg={ACCENT_FG}>
+        {`? Asked ${count || "a"} clarifying question${count === 1 || count === 0 ? "" : "s"}`}
+      </text>
+      {prompts.map((prompt, index) => (
+        <text key={index} fg={MUTED_FG}>{`  ${prompt}`}</text>
+      ))}
+    </box>
   )
 }

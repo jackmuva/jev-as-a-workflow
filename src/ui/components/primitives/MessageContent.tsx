@@ -58,22 +58,6 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
           if (part.type !== "tool-result") return null
           const toolResult = part as ToolResultPart
 
-          if (toolResult.toolName === "AskQuestion") {
-            return (
-              <box
-                key={toolResult.toolCallId ?? index}
-                border={["left"]}
-                borderColor={AGENT_BORDER_COLOR}
-                paddingLeft={1}
-                marginBottom={1}
-                width="100%"
-              >
-                <text fg={AGENT_BORDER_COLOR}>Your answers</text>
-                <text>{formatToolResultText(toolResult)}</text>
-              </box>
-            )
-          }
-
           const matchedCall = toolCallInputs.get(toolResult.toolCallId)
           return (
             <box key={toolResult.toolCallId ?? index}>
@@ -102,7 +86,7 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
           if (
             toolCall.toolName === "AskQuestion"
             || toolCall.toolName === "CreatePlan"
-            || toolCall.toolName.endsWith("/message_answer")
+            || toolCall.toolName === "default/message_answer"
           ) {
             return null
           }

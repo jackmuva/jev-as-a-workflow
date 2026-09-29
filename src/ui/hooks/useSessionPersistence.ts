@@ -37,11 +37,12 @@ export const useSessionPersistence = (
     });
   }, [session.id, store]);
 
+  // Start a fresh session instead of wiping the current one, so it stays resumable.
   const clearSession = useCallback(() => {
-    const next = [...seedMessages];
-    store.saveMessages(session.id, next);
-    setMessagesState(next);
-  }, [seedMessages, session.id, store]);
+    const hasConversation = store.loadMessages(session.id).length > 0;
+    if (hasConversation) setSession(store.createSession(workspace));
+    setMessagesState([...seedMessages]);
+  }, [seedMessages, session.id, store, workspace]);
 
   const getSessions = useCallback(() => store.listSessions(workspace), [store, workspace]);
 

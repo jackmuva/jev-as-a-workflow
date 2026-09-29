@@ -3,9 +3,6 @@ import { callTitle, readStringField } from "../../lib/format/utils"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
 import { ToolFrame } from "../primitives/ToolFrame"
 
-const answerPreview = (answer: string): string | undefined =>
-  answer.split("\n").find(Boolean)?.trim()
-
 const renderAnswerView = (
   props: ToolViewProps,
   answer: string,
@@ -15,7 +12,6 @@ const renderAnswerView = (
     {...props}
     toolName={title}
     content={answer}
-    subtitle={answerPreview(answer)}
   />
 )
 
@@ -39,5 +35,5 @@ export const MessageAnswerToolCallView = (props: ToolViewProps) => {
 
 export const MessageAnswerToolResultView = (props: ToolViewProps) => {
   const answer = props.text || readStringField(props.input, "answer") || ""
-  return renderAnswerView(props, answer, "Answer")
+  return renderAnswerView(props, answer, callTitle(props.toolName))
 }

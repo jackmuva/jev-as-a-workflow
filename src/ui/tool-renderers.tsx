@@ -1,7 +1,7 @@
 import { createElement, type ComponentType, type ReactNode } from "react"
 import type { ToolViewProps } from "../models/ui"
 import { ApplyPatchToolCallView, ApplyPatchToolResultView } from "./components/tools/ApplyPatchToolView"
-import { AskQuestionToolCallView } from "./components/tools/AskQuestionToolView"
+import { AskQuestionToolCallView, AskQuestionToolResultView } from "./components/tools/AskQuestionToolView"
 import { BashToolCallView, BashToolResultView } from "./components/tools/BashToolView"
 import { DefaultToolCallView, SmartDefaultToolResultView } from "./components/tools/DefaultToolViews"
 import { EditToolCallView, EditToolResultView } from "./components/tools/EditToolView"
@@ -31,6 +31,7 @@ const toolResultComponents: Record<string, ToolComponent> = {
   "default/webfetch": WebFetchToolResultView,
   "default/websearch": WebSearchToolResultView,
   "default/message_answer": MessageAnswerToolResultView,
+  AskQuestion: AskQuestionToolResultView,
   CreatePlan: PlanToolResultView,
 }
 

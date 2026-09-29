@@ -6,8 +6,9 @@ import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56
-const HEADER_LINES = 2
 const DIALOG_PADDING = 2
+const DIALOG_BORDER = 2
+const INSTRUCTIONS = "↑/↓ to navigate · Enter to resume · Esc to dismiss"
 
 type SessionSelectionDialogProps = {
   sessions: SessionRecord[]
@@ -80,13 +81,21 @@ export const SessionSelectionDialog = ({
     [currentSessionId, sessions],
   )
 
+  const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(24, terminalWidth - 4))
+  const innerWidth = dialogWidth - DIALOG_BORDER - DIALOG_PADDING
+  // Title line plus the instructions, which wrap on narrow terminals.
+  const headerLines = 1 + Math.ceil(INSTRUCTIONS.length / innerWidth)
+  const chromeLines = headerLines + DIALOG_PADDING + DIALOG_BORDER
+
   const linesPerItem = 2
+  const maxListHeight = Math.max(linesPerItem, terminalHeight - 2 - chromeLines)
   const listHeight = Math.min(
     MAX_VISIBLE_ITEMS * linesPerItem,
+    maxListHeight,
     Math.max(linesPerItem, options.length * linesPerItem),
   )
-  const dialogHeight = listHeight + HEADER_LINES + DIALOG_PADDING + (sessions.length === 0 ? 1 : 0)
-  const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(24, terminalWidth - 4))
+  const bodyHeight = sessions.length === 0 ? 1 : listHeight
+  const dialogHeight = bodyHeight + chromeLines
   const top = Math.max(1, Math.floor((terminalHeight - dialogHeight) / 2))
   const left = Math.max(1, Math.floor((terminalWidth - dialogWidth) / 2))
 
@@ -115,10 +124,10 @@ export const SessionSelectionDialog = ({
         flexDirection="column"
         padding={1}
       >
-        <text fg={AGENT_BORDER_COLOR}>Resume session</text>
-        <text fg="#565f89">↑/↓ to navigate · Enter to resume · Esc to dismiss</text>
+        <text fg={AGENT_BORDER_COLOR} flexShrink={0}>Resume session</text>
+        <text fg="#565f89" flexShrink={0}>{INSTRUCTIONS}</text>
         {sessions.length === 0 ? (
-          <text fg="#565f89">No saved sessions for this workspace</text>
+          <text fg="#565f89" flexShrink={0}>No saved sessions for this workspace</text>
         ) : (
           <select
             options={options}

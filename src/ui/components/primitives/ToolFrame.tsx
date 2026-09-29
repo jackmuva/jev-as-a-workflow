@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { useState } from "react"
 
 export const AGENT_BORDER_COLOR = "#565f89"
+export const USER_INPUT_BORDER_COLOR = "#e0af68"
 export const TOOL_RESULT_MAX_HEIGHT = 14
 const MUTED_FG = "#565f89"
 
@@ -42,7 +43,7 @@ export const ToolFrame = ({
       <box
         width="100%"
         height={expanded ? "auto" : maxHeight}
-        // overflow={expanded ? undefined : "hidden"}
+        overflow={expanded ? undefined : "hidden"}
       >
         {children}
       </box>
