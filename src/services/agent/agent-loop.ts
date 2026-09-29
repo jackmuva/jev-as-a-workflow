@@ -1,6 +1,6 @@
 import { findPendingAskQuestion } from './utils/ask-question-state';
 import type { AgentState, JevMessage } from '../../models/agent';
-import { runToolNode, actionSelectNode } from './graph';
+import { clarifyTaskNode, createPlanNode, initialNode, runToolNode, actionSelectNode } from './graph';
 import { compactionHook } from './hooks/compaction';
 import { rewindState } from './hooks/rewind';
 import { jevMessage } from './utils/jev-message';
@@ -24,6 +24,19 @@ export const jevLoop = async (
   }
 
   state = sync(await compactionHook(state));
+  state = sync(await initialNode(state));
+  state = sync(await compactionHook(state));
+  if (state.state === "END") {
+    return;
+  }
+  if (state.state === "PLAN") {
+    state = sync(await createPlanNode(state));
+  } else if (state.state === "DISCOVERY") {
+    state = sync(await clarifyTaskNode(state));
+    if (findPendingAskQuestion(state.messages)) {
+      return;
+    }
+  }
 
   let checkpoints: Array<{ state: AgentState, options: string[] }> = [];
   while (i < MAX_ITERATIONS) {

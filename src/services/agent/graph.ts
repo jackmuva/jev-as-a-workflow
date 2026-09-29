@@ -91,10 +91,10 @@ const buildToolCriteria = (tools: McpTool[]) => {
   criteria = {
     ...criteria,
     [CREATE_PLAN_ACTION]: {
-      description: "The user's task is a multi-step problem. Create a numbered plan before executing.",
+      description: 'Create or revise a numbered plan based on progress and new information.',
     },
     [ASK_QUESTION_ACTION]: {
-      description: 'The task is too ambiguous. Ask 1-3 focused follow-up questions.',
+      description: 'Ask follow-up questions when the task needs more clarity.',
     },
     taskCompleted: {
       description: "The user's task was completed"
@@ -104,9 +104,6 @@ const buildToolCriteria = (tools: McpTool[]) => {
     },
     notPossible: {
       description: "Based off the given tools, the task is not possible"
-    },
-    outOfScope: {
-      description: "The task is outside of the capabilities given the tools"
     },
   }
   return criteria;
@@ -124,6 +121,45 @@ const listAllTools = async () => [
 const formatToolList = (tools: McpTool[]) => tools
   .map((tool) => `- ${tool.server}/${tool.name}${tool.description ? `: ${tool.description}` : ''}`)
   .join('\n');
+
+export const initialNode = async (state: AgentState): Promise<AgentState> => {
+  const tools = await listAllTools();
+  const { answers } = await evaluate({
+    model: SYSTEM_ONE_MODEL,
+    state: [{
+      toolsAvailable: tools as JSONValue,
+      messages: toModelMessages(state.messages) as JSONValue
+    }],
+    questions: {
+      nextStep: {
+        type: "choice",
+        instructions: "Based off the user's last ask and the tools given, what should we do?",
+        criteria: {
+          "directAnswer": "The user wants a command or action performed with a single tool call.",
+          "createPlan": "The user's task is a multi-step problem. We should create a plan.",
+          "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
+          "outOfScope": "The task is outside of the capabilities given the tools"
+        }
+      }
+    },
+  });
+
+  const probabilities = answers.nextStep.probabilities;
+
+  if (answers.nextStep.choice === "outOfScope") {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: "task out of scope"
+    };
+    return { state: "END", messages: [...state.messages, jevMessage(message)] };
+  } else if (answers.nextStep.choice === "createPlan") {
+    return { state: "PLAN", messages: state.messages, probabilities };
+  } else if (answers.nextStep.choice === "directAnswer") {
+    return { state: "EXECUTE", messages: state.messages };
+  } else {
+    return { state: "DISCOVERY", messages: state.messages, probabilities };
+  }
+}
 
 export const actionSelectNode = async (
   state: AgentState,
@@ -197,15 +233,6 @@ export const actionSelectNode = async (
       state: { state: "END", messages: [...state.messages, jevMessage(message)] },
       options: [],
     };
-  } else if (answers.selectedAction.choice === "outOfScope") {
-    const message: ModelMessage = {
-      role: "assistant",
-      content: "task out of scope",
-    };
-    return {
-      state: { state: "END", messages: [...state.messages, jevMessage(message)] },
-      options: [],
-    };
   }
   return {
     state: {
@@ -218,9 +245,10 @@ export const actionSelectNode = async (
   };
 }
 
-const runCreatePlan = async (state: AgentState): Promise<AgentState> => {
+export const createPlanNode = async (state: AgentState): Promise<AgentState> => {
   const toolList = formatToolList(await listAllTools());
   const planInstructions = `You are a planner. Break the user's task into a short numbered list of steps.
+If a plan already exists, revise it to reflect new information.
 
 We have the following tools to complete the task:
 ${toolList || '(none)'}
@@ -266,9 +294,9 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
   };
 };
 
-const runAskQuestion = async (state: AgentState): Promise<AgentState> => {
+export const clarifyTaskNode = async (state: AgentState): Promise<AgentState> => {
   const toolCall = await generateRequiredToolCall({
-    instructions: `You are helping clarify an ambiguous user task before work begins. Ask 1-3 focused follow-up questions to resolve what is unclear.
+    instructions: `You are helping clarify an ambiguous user task. Ask 1-3 focused follow-up questions to resolve what is unclear.
 
 
 Call the AskQuestion tool with concrete options for each question. Provide 2-4 likely answers per question based on the task and available tools. Always include an option with id "other" and label "Other" so the user can type a custom answer.`,
@@ -313,11 +341,11 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
   }
 
   if (selectedTool === CREATE_PLAN_ACTION) {
-    return runCreatePlan(state);
+    return createPlanNode(state);
   }
 
   if (selectedTool === ASK_QUESTION_ACTION) {
-    return runAskQuestion(state);
+    return clarifyTaskNode(state);
   }
 
   const availableTools = await listAllTools();
