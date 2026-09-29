@@ -42,6 +42,22 @@ describe('SessionStore', () => {
     ]);
   });
 
+  test('lists sessions for a workspace ordered by most recently updated', () => {
+    const store = SessionStore.openInMemory();
+    const workspace = '/tmp/project-list';
+    const first = store.createSession(workspace);
+    const second = store.createSession(workspace);
+
+    store.saveMessages(first.id, [{ role: 'user', content: 'first session' }]);
+    store.saveMessages(second.id, [{ role: 'user', content: 'second session' }]);
+
+    const sessions = store.listSessions(workspace);
+
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]?.id).toBe(second.id);
+    expect(sessions[1]?.id).toBe(first.id);
+  });
+
   test('clears saved messages when only system messages remain', () => {
     const store = SessionStore.openInMemory();
     const session = store.getOrCreateSession('/tmp/project-d');

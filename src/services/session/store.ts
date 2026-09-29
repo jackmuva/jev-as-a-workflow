@@ -79,6 +79,49 @@ export class SessionStore {
     return new SessionStore(db);
   }
 
+  listSessions(workspacePath: string): SessionRecord[] {
+    const normalized = resolve(workspacePath);
+    const rows = this.db.query(`
+      SELECT id, workspace_path, title, created_at, updated_at
+      FROM sessions
+      WHERE workspace_path = ?
+      ORDER BY updated_at DESC
+    `).all(normalized) as Array<{
+      id: string;
+      workspace_path: string;
+      title: string | null;
+      created_at: number;
+      updated_at: number;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      workspacePath: row.workspace_path,
+      title: row.title,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  createSession(workspacePath: string): SessionRecord {
+    const normalized = resolve(workspacePath);
+    const now = Date.now();
+    const session: SessionRecord = {
+      id: createSessionId(),
+      workspacePath: normalized,
+      title: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.db.run(`
+      INSERT INTO sessions (id, workspace_path, title, created_at, updated_at)
+      VALUES (?, ?, NULL, ?, ?)
+    `, [session.id, session.workspacePath, session.createdAt, session.updatedAt]);
+
+    return session;
+  }
+
   getOrCreateSession(workspacePath: string): SessionRecord {
     const normalized = resolve(workspacePath);
     const existing = this.db.query(`
@@ -105,21 +148,7 @@ export class SessionStore {
       };
     }
 
-    const now = Date.now();
-    const session: SessionRecord = {
-      id: createSessionId(),
-      workspacePath: normalized,
-      title: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    this.db.run(`
-      INSERT INTO sessions (id, workspace_path, title, created_at, updated_at)
-      VALUES (?, ?, NULL, ?, ?)
-    `, [session.id, session.workspacePath, session.createdAt, session.updatedAt]);
-
-    return session;
+    return this.createSession(workspacePath);
   }
 
   loadMessages(sessionId: string): ModelMessage[] {
