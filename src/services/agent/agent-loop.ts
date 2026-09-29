@@ -23,7 +23,9 @@ export const jevLoop = async (
     return;
   }
 
+  state = sync(await compactionHook(state));
   state = sync(await initialNode(state));
+  state = sync(await compactionHook(state));
   if (state.state === "PLAN") {
     state = sync(await createPlanNode(state));
   } else if (state.state === "DISCOVERY") {
@@ -35,6 +37,7 @@ export const jevLoop = async (
 
   let checkpoints: Array<{ state: AgentState, options: string[] }> = [];
   while (i < MAX_ITERATIONS) {
+    state = sync(await compactionHook(state));
     if (state.state !== "REWIND" && !state.selectedTool) {
       const { state: newState, options } = await actionSelectNode(state);
       state = sync(newState);

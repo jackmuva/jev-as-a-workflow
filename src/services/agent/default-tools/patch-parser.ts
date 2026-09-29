@@ -10,101 +10,142 @@ export type UpdateFileChunk = {
   is_end_of_file?: boolean;
 };
 
+const BEGIN_PATCH = '*** Begin Patch';
+const END_PATCH = '*** End Patch';
+
 function parsePatchHeader(
   lines: string[],
   startIdx: number,
-): { filePath: string; movePath?: string; nextIdx: number } | null {
+): { filePath: string; movePath?: string; nextIdx: number } {
   const line = lines[startIdx];
-  if (!line) return null;
+  if (!line) {
+    throw new Error('Invalid patch format: expected file operation header');
+  }
 
   if (line.startsWith('*** Add File:')) {
     const filePath = line.slice('*** Add File:'.length).trim();
-    return filePath ? { filePath, nextIdx: startIdx + 1 } : null;
+    if (!filePath) {
+      throw new Error(`Invalid patch format: missing file path in header: ${line}`);
+    }
+    return { filePath, nextIdx: startIdx + 1 };
   }
 
   if (line.startsWith('*** Delete File:')) {
     const filePath = line.slice('*** Delete File:'.length).trim();
-    return filePath ? { filePath, nextIdx: startIdx + 1 } : null;
+    if (!filePath) {
+      throw new Error(`Invalid patch format: missing file path in header: ${line}`);
+    }
+    return { filePath, nextIdx: startIdx + 1 };
   }
 
   if (line.startsWith('*** Update File:')) {
     const filePath = line.slice('*** Update File:'.length).trim();
+    if (!filePath) {
+      throw new Error(`Invalid patch format: missing file path in header: ${line}`);
+    }
+
     let movePath: string | undefined;
     let nextIdx = startIdx + 1;
 
     const moveLine = lines[nextIdx];
     if (moveLine?.startsWith('*** Move to:')) {
       movePath = moveLine.slice('*** Move to:'.length).trim();
+      if (!movePath) {
+        throw new Error(`Invalid patch format: missing move target in header: ${moveLine}`);
+      }
       nextIdx++;
     }
 
-    return filePath ? { filePath, movePath, nextIdx } : null;
+    return { filePath, movePath, nextIdx };
   }
 
-  return null;
+  throw new Error(`Invalid patch format: expected file operation header, got: ${line}`);
 }
 
-function parseUpdateFileChunks(lines: string[], startIdx: number): { chunks: UpdateFileChunk[]; nextIdx: number } {
+function parseUpdateFileChunks(lines: string[], startIdx: number, endIdx: number): { chunks: UpdateFileChunk[]; nextIdx: number } {
   const chunks: UpdateFileChunk[] = [];
   let i = startIdx;
 
-  while (i < lines.length) {
+  while (i < endIdx) {
     const current = lines[i];
     if (!current || current.startsWith('***')) break;
 
-    if (current.startsWith('@@')) {
-      const contextLine = current.substring(2).trim();
+    if (current.trim() === '') {
       i++;
+      continue;
+    }
 
-      const oldLines: string[] = [];
-      const newLines: string[] = [];
-      let isEndOfFile = false;
+    if (!current.startsWith('@@')) {
+      throw new Error(`Invalid patch format: expected hunk marker @@, got: ${current}`);
+    }
 
-      while (i < lines.length) {
-        const changeLine = lines[i];
-        if (!changeLine || changeLine.startsWith('@@') || changeLine.startsWith('***')) break;
+    const contextLine = current.substring(2).trim();
+    i++;
 
+    const oldLines: string[] = [];
+    const newLines: string[] = [];
+    let isEndOfFile = false;
+
+    while (i < endIdx) {
+      const changeLine = lines[i];
+      if (!changeLine || changeLine.startsWith('@@')) break;
+
+      if (changeLine.startsWith('***')) {
         if (changeLine === '*** End of File') {
           isEndOfFile = true;
           i++;
-          break;
         }
-
-        if (changeLine.startsWith(' ')) {
-          const content = changeLine.substring(1);
-          oldLines.push(content);
-          newLines.push(content);
-        } else if (changeLine.startsWith('-')) {
-          oldLines.push(changeLine.substring(1));
-        } else if (changeLine.startsWith('+')) {
-          newLines.push(changeLine.substring(1));
-        }
-
-        i++;
+        break;
       }
 
-      chunks.push({
-        old_lines: oldLines,
-        new_lines: newLines,
-        change_context: contextLine || undefined,
-        is_end_of_file: isEndOfFile || undefined,
-      });
-    } else {
+      if (changeLine.trim() === '') {
+        throw new Error('Invalid patch format: hunk lines must start with space, -, or +');
+      }
+
+      if (changeLine.startsWith(' ')) {
+        const content = changeLine.substring(1);
+        oldLines.push(content);
+        newLines.push(content);
+      } else if (changeLine.startsWith('-')) {
+        oldLines.push(changeLine.substring(1));
+      } else if (changeLine.startsWith('+')) {
+        newLines.push(changeLine.substring(1));
+      } else {
+        throw new Error(`Invalid patch format: hunk lines must start with space, -, or +, got: ${changeLine}`);
+      }
+
       i++;
     }
+
+    chunks.push({
+      old_lines: oldLines,
+      new_lines: newLines,
+      change_context: contextLine || undefined,
+      is_end_of_file: isEndOfFile || undefined,
+    });
   }
 
   return { chunks, nextIdx: i };
 }
 
-function parseAddFileContent(lines: string[], startIdx: number): { content: string; nextIdx: number } {
+function parseAddFileContent(lines: string[], startIdx: number, endIdx: number): { content: string; nextIdx: number } {
   let content = '';
   let i = startIdx;
 
-  while (i < lines.length) {
+  while (i < endIdx) {
     const line = lines[i];
     if (!line || line.startsWith('***')) break;
-    if (line.startsWith('+')) content += `${line.substring(1)}\n`;
+
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    if (!line.startsWith('+')) {
+      throw new Error(`Invalid patch format: add file content lines must start with '+', got: ${line}`);
+    }
+
+    content += `${line.substring(1)}\n`;
     i++;
   }
 
@@ -117,38 +158,99 @@ function stripHeredoc(input: string): string {
   return heredocMatch?.[2] ?? input;
 }
 
-export function parsePatch(patchText: string): { hunks: Hunk[] } {
+function normalizePatchLines(patchText: string): string[] {
   const cleaned = stripHeredoc(patchText.trim());
-  const lines = cleaned.split('\n');
-  const hunks: Hunk[] = [];
+  const normalized = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  return normalized.split('\n');
+}
 
-  const beginIdx = lines.findIndex((line) => line.trim() === '*** Begin Patch');
-  const endIdx = lines.findIndex((line) => line.trim() === '*** End Patch');
+export function normalizeHunks(hunks: Hunk[]): Hunk[] {
+  const pathOps = new Map<string, Hunk>();
 
-  if (beginIdx === -1 || endIdx === -1 || beginIdx >= endIdx) {
-    throw new Error('Invalid patch format: missing Begin/End markers');
+  for (const hunk of hunks) {
+    const existing = pathOps.get(hunk.path);
+
+    if (!existing) {
+      pathOps.set(
+        hunk.path,
+        hunk.type === 'update' ? { ...hunk, chunks: [...hunk.chunks] } : hunk,
+      );
+      continue;
+    }
+
+    if (hunk.type === 'update' && existing.type === 'update') {
+      if (hunk.move_path && existing.move_path && hunk.move_path !== existing.move_path) {
+        throw new Error(
+          `Invalid patch format: conflicting move targets for ${hunk.path}: ` +
+          `'${existing.move_path}' and '${hunk.move_path}'`,
+        );
+      }
+
+      pathOps.set(hunk.path, {
+        type: 'update',
+        path: existing.path,
+        move_path: hunk.move_path ?? existing.move_path,
+        chunks: [...existing.chunks, ...hunk.chunks],
+      });
+      continue;
+    }
+
+    throw new Error(
+      `Invalid patch format: duplicate patch operation for ${hunk.path}: ` +
+      `cannot ${hunk.type} after ${existing.type}`,
+    );
   }
 
-  let i = beginIdx + 1;
+  const seen = new Set<string>();
+  const ordered: Hunk[] = [];
+  for (const hunk of hunks) {
+    if (seen.has(hunk.path)) continue;
+    seen.add(hunk.path);
+    const merged = pathOps.get(hunk.path);
+    if (merged) ordered.push(merged);
+  }
+
+  return ordered;
+}
+
+export function parsePatch(patchText: string): { hunks: Hunk[] } {
+  const lines = normalizePatchLines(patchText);
+
+  if (lines.length < 2) {
+    throw new Error('Invalid patch format: patch must include Begin and End markers');
+  }
+
+  if (lines[0]?.trim() !== BEGIN_PATCH) {
+    throw new Error("Invalid patch format: patch must start with '*** Begin Patch'");
+  }
+
+  if (lines[lines.length - 1]?.trim() !== END_PATCH) {
+    throw new Error("Invalid patch format: patch must end with '*** End Patch'");
+  }
+
+  const endIdx = lines.length - 1;
+  const rawHunks: Hunk[] = [];
+  let i = 1;
 
   while (i < endIdx) {
     const current = lines[i];
-    const header = parsePatchHeader(lines, i);
-    if (!header || !current) {
+    if (!current || current.trim() === '') {
       i++;
       continue;
     }
 
+    const header = parsePatchHeader(lines, i);
+
     if (current.startsWith('*** Add File:')) {
-      const { content, nextIdx } = parseAddFileContent(lines, header.nextIdx);
-      hunks.push({ type: 'add', path: header.filePath, contents: content });
+      const { content, nextIdx } = parseAddFileContent(lines, header.nextIdx, endIdx);
+      rawHunks.push({ type: 'add', path: header.filePath, contents: content });
       i = nextIdx;
     } else if (current.startsWith('*** Delete File:')) {
-      hunks.push({ type: 'delete', path: header.filePath });
+      rawHunks.push({ type: 'delete', path: header.filePath });
       i = header.nextIdx;
     } else if (current.startsWith('*** Update File:')) {
-      const { chunks, nextIdx } = parseUpdateFileChunks(lines, header.nextIdx);
-      hunks.push({
+      const { chunks, nextIdx } = parseUpdateFileChunks(lines, header.nextIdx, endIdx);
+      rawHunks.push({
         type: 'update',
         path: header.filePath,
         move_path: header.movePath,
@@ -156,11 +258,15 @@ export function parsePatch(patchText: string): { hunks: Hunk[] } {
       });
       i = nextIdx;
     } else {
-      i++;
+      throw new Error(`Invalid patch format: expected file operation header, got: ${current}`);
     }
   }
 
-  return { hunks };
+  if (rawHunks.length === 0) {
+    throw new Error('Invalid patch format: patch must include at least one file operation');
+  }
+
+  return { hunks: normalizeHunks(rawHunks) };
 }
 
 export function deriveNewContentsFromChunks(

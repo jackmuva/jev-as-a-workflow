@@ -11,7 +11,10 @@ export const detectTrigger = (text: string, cursor: number): ActiveTrigger | nul
   while (index >= 0 && !/\s/.test(text[index]!)) {
     const char = text[index]!
     if (char === "@" || char === "/") {
-      if (!isBoundary(text[index - 1])) return null
+      if (!isBoundary(text[index - 1])) {
+        index -= 1
+        continue
+      }
 
       const kind: CompletionKind = char === "@" ? "at" : "slash"
       return {

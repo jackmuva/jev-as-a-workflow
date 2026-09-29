@@ -24,7 +24,12 @@ const DEFAULT_OPTIONS: Required<CompactionOptions> = {
 const truncate = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max)}…`;
 
-const messageToText = (message: ModelMessage): string => {
+type MessageTextOptions = {
+  /** Truncate tool-result payloads when building text (for summarization). Omit to keep full content. */
+  truncateToolResults?: number;
+};
+
+const messageToText = (message: ModelMessage, options: MessageTextOptions = {}): string => {
   const prefix = `${message.role}: `;
   if (typeof message.content === 'string') {
     return prefix + message.content;
@@ -41,7 +46,10 @@ const messageToText = (message: ModelMessage): string => {
         if ('value' in part.output) {
           const value = part.output.value;
           const text = typeof value === 'string' ? value : JSON.stringify(value);
-          return `[tool result: ${part.toolName}: ${truncate(text, 500)}]`;
+          const payload = options.truncateToolResults != null
+            ? truncate(text, options.truncateToolResults)
+            : text;
+          return `[tool result: ${part.toolName}: ${payload}]`;
         }
         return `[tool result: ${part.toolName}: ${part.output.type}]`;
       default:
@@ -52,13 +60,13 @@ const messageToText = (message: ModelMessage): string => {
   return prefix + parts.join('\n');
 };
 
-/** Rough token estimate (~4 chars per token). */
-const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+/** Rough token estimate (~3 chars per token; conservative for code/JSON). */
+const estimateTokens = (text: string): number => Math.ceil(text.length / 3);
 
 const estimateMessageTokens = (message: ModelMessage): number =>
   estimateTokens(messageToText(message));
 
-const estimateMessagesTokens = (messages: ModelMessage[]): number =>
+export const estimateMessagesTokens = (messages: ModelMessage[]): number =>
   messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
 
 const getRetainedIndices = (
@@ -115,7 +123,9 @@ export const compactMessages = async (
     return messages;
   }
 
-  const transcript = toSummarize.map(messageToText).join('\n\n');
+  const transcript = toSummarize
+    .map((message) => messageToText(message, { truncateToolResults: 2_000 }))
+    .join('\n\n');
   const { text: summary } = await generateText({
     model: LLM_MODEL,
     instructions:

@@ -150,10 +150,6 @@ export const executeApplyPatch = async ({ patchText }: ApplyPatchInput): Promise
   }
 
   if (hunks.length === 0) {
-    const normalized = patchText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-    if (normalized === '*** Begin Patch\n*** End Patch') {
-      throw new Error('patch rejected: empty patch');
-    }
     throw new Error('apply_patch verification failed: no hunks found');
   }
 

@@ -102,6 +102,7 @@ type QuestionFieldProps = {
   answer: QuestionAnswer
   onAnswerChange: (answer: QuestionAnswer) => void
   onOtherSelected: () => void
+  onOtherSubmit: () => void
   selectFocused: boolean
   inputFocused: boolean
 }
@@ -111,6 +112,7 @@ const QuestionField = ({
   answer,
   onAnswerChange,
   onOtherSelected,
+  onOtherSubmit,
   selectFocused,
   inputFocused,
 }: QuestionFieldProps) => {
@@ -157,6 +159,7 @@ const QuestionField = ({
           onInput={(value) =>
             onAnswerChange({ ...answer, customText: value })
           }
+          onSubmit={onOtherSubmit}
         />
       )}
     </box>
@@ -194,21 +197,36 @@ export const ClarifyQuestionBox = ({ input, onSubmit }: ClarifyQuestionBoxProps)
     [allComplete, answers, questionIds],
   )
 
-  useEffect(() => {
-    setFocusTarget((current) => normalizeQuestionFocusTarget(focusTargets, current))
-  }, [focusTargets])
-
-  useKeyboard((key) => {
-    if (key.name !== "tab") return
-    setFocusTarget((current) =>
-      getNextQuestionFocusTarget(focusTargets, current, key.shift),
-    )
-  })
-
   const handleSubmit = () => {
     if (!allComplete) return
     onSubmit(formatAskQuestionAnswers(questions, answers))
   }
+
+  useEffect(() => {
+    setFocusTarget((current) => normalizeQuestionFocusTarget(focusTargets, current))
+  }, [focusTargets])
+
+  useEffect(() => {
+    if (!allComplete) return
+    setFocusTarget((current) =>
+      current.kind === "other-input" ? current : { kind: "submit" },
+    )
+  }, [allComplete])
+
+  useKeyboard((key) => {
+    if (key.name === "tab") {
+      setFocusTarget((current) =>
+        getNextQuestionFocusTarget(focusTargets, current, key.shift),
+      )
+      return
+    }
+
+    const isSubmitKey =
+      key.name === "return" || key.name === "kpenter" || key.name === "linefeed"
+    if (allComplete && isSubmitKey && focusTarget.kind === "submit") {
+      handleSubmit()
+    }
+  })
 
   return (
     <box
@@ -239,22 +257,22 @@ export const ClarifyQuestionBox = ({ input, onSubmit }: ClarifyQuestionBoxProps)
           onOtherSelected={() =>
             setFocusTarget({ kind: "other-input", questionIndex: index })
           }
+          onOtherSubmit={handleSubmit}
           onAnswerChange={(answer) =>
             setAnswers((prev) => ({ ...prev, [question.id]: answer }))
           }
         />
       ))}
-      <text fg={AGENT_BORDER_COLOR}>
+      <text
+        fg={focusTarget.kind === "submit" ? "#c0caf5" : AGENT_BORDER_COLOR}
+        marginTop={1}
+      >
         {allComplete
-          ? "Tab between questions and submit · ↑↓ choose · Enter to select · Enter on submit to send"
+          ? focusTarget.kind === "submit"
+            ? "Press Enter to submit your answers · Tab to review choices"
+            : "Tab to submit · ↑↓ choose · Enter to select"
           : "Tab between questions · ↑↓ choose · Enter to select · choose Other to type a custom answer"}
       </text>
-      <input
-        placeholder={allComplete ? "Press Enter to submit" : "Complete all questions first"}
-        width="100%"
-        focused={focusTarget.kind === "submit"}
-        onSubmit={handleSubmit}
-      />
     </box>
   )
 }

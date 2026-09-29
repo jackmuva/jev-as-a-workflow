@@ -9,6 +9,7 @@ import { GlobToolCallView, GlobToolResultView } from "./components/tools/GlobToo
 import { GrepToolCallView, GrepToolResultView } from "./components/tools/GrepToolView"
 import { ListDirToolCallView, ListDirToolResultView } from "./components/tools/ListDirToolView"
 import { ReadToolCallView, ReadToolResultView } from "./components/tools/ReadToolView"
+import { MessageAnswerToolResultView } from "./components/tools/MessageAnswerToolView"
 import { WebFetchToolCallView, WebFetchToolResultView } from "./components/tools/WebFetchToolView"
 import { WebSearchToolCallView, WebSearchToolResultView } from "./components/tools/WebSearchToolView"
 import { WriteToolCallView, WriteToolResultView } from "./components/tools/WriteToolView"
@@ -28,6 +29,7 @@ const toolResultComponents: Record<string, ToolComponent> = {
   "default/list_dir": ListDirToolResultView,
   "default/webfetch": WebFetchToolResultView,
   "default/websearch": WebSearchToolResultView,
+  "default/message_answer": MessageAnswerToolResultView,
 }
 
 const toolCallComponents: Record<string, ToolComponent> = {
