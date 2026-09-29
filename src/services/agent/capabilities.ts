@@ -15,6 +15,11 @@ export const selectAllCapabilities = (catalog: CapabilityCatalog): CapabilitySel
   skills: catalog.skills.map((entry) => entry.name),
   mcpServers: catalog.mcpServers.map((entry) => entry.name),
   userTools: catalog.userTools.map((entry) => entry.name),
+  agentsMd: catalog.agentsMd.map((entry) => entry.name),
 });
 
-export const isCatalogEmpty = (catalog: CapabilityCatalog) => catalog.skills.length + catalog.mcpServers.length + catalog.userTools.length === 0;
+export const isCatalogEmpty = (catalog: CapabilityCatalog) =>
+  catalog.skills.length
+  + catalog.mcpServers.length
+  + catalog.userTools.length
+  + catalog.agentsMd.length === 0;
