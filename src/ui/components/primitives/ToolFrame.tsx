@@ -1,6 +1,7 @@
 import { MouseButton, type MouseEvent } from "@opentui/core"
 import type { ReactNode } from "react"
 import { createContext, useContext, useState } from "react"
+import { WorkflowEdge } from "./WorkflowEdge"
 
 export const AGENT_BORDER_COLOR = "#565f89"
 export const USER_INPUT_BORDER_COLOR = "#e0af68"
@@ -8,6 +9,11 @@ export const TOOL_RESULT_MAX_HEIGHT = 14
 const MUTED_FG = "#565f89"
 const CALL_LABEL_FG = "#7aa2f7"
 const OUTPUT_LABEL_FG = "#9ece6a"
+
+const NODE_LABEL: Record<ToolFrameKind, string> = {
+  call: "● CALL",
+  output: "■ OUTPUT",
+}
 
 export type ToolFrameKind = "call" | "output"
 
@@ -37,30 +43,34 @@ export const ToolFrame = ({
     setExpanded((value) => !value)
   }
 
+  const accent = kind === "call" ? CALL_LABEL_FG : kind === "output" ? OUTPUT_LABEL_FG : AGENT_BORDER_COLOR
+  const label = kind ? `${NODE_LABEL[kind]} · ` : ""
+
   return (
-    <box
-      border={true}
-      borderColor={AGENT_BORDER_COLOR}
-      paddingLeft={1}
-      marginBottom={1}
-      width={width}
-    >
-      <text>
-        {kind === "call" ? <span fg={CALL_LABEL_FG}>{"CALL "}</span> : null}
-        {kind === "output" ? <span fg={OUTPUT_LABEL_FG}>{"OUTPUT "}</span> : null}
-        {title}
-      </text>
-      {subtitle ? <text fg="#7aa2f7">{subtitle}</text> : null}
+    <box flexDirection="column" flexShrink={0} width={width}>
+      <WorkflowEdge />
       <box
+        border={true}
+        borderStyle="rounded"
+        borderColor={accent}
+        title={` ${label}${title} `}
+        titleColor={accent}
+        paddingLeft={1}
+        paddingRight={1}
         width="100%"
-        maxHeight={expanded ? undefined : maxHeight}
-        overflow={expanded ? undefined : "hidden"}
       >
-        {children}
+        {subtitle ? <text fg={MUTED_FG}>{subtitle}</text> : null}
+        <box
+          width="100%"
+          maxHeight={expanded ? undefined : maxHeight}
+          overflow={expanded ? undefined : "hidden"}
+        >
+          {children}
+        </box>
+        <text fg={MUTED_FG} selectable={false} onMouseDown={handleToggle}>
+          {expanded ? "▴ collapse" : "▾ expand"}
+        </text>
       </box>
-      <text fg={MUTED_FG} selectable={false} onMouseDown={handleToggle}>
-        {expanded ? "click to collapse" : "click to expand"}
-      </text>
     </box>
   )
 }

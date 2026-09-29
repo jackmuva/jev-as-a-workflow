@@ -1,5 +1,5 @@
 import type { KeyBinding, TextareaRenderable } from "@opentui/core"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { listWorkspaceFiles } from "../../lib/input-completion/at-files"
 import { useInputCompletion } from "../../hooks/useInputCompletion"
 import type { SlashCommandActions } from "../../lib/input-completion/slash-commands"
@@ -13,6 +13,8 @@ const chatKeyBindings: KeyBinding[] = [
   { name: "linefeed", action: "submit" },
   { name: "linefeed", shift: true, action: "newline" },
 ]
+
+const MAX_INPUT_LINES = 8
 
 type ChatInputProps = {
   disabled?: boolean
@@ -39,6 +41,21 @@ export const ChatInput = ({
     handleSubmitAttempt,
   } = useInputCompletion({ textareaRef, disabled, slashCommandActions: slashCommandHandlers })
 
+  const [lineCount, setLineCount] = useState(1)
+
+  // Textarea has no intrinsic height, so size it to its (wrapped) content.
+  const syncHeight = () => {
+    const textarea = textareaRef.current
+    // virtualLineCount (wrapped rows) lags behind edits until the next layout, so take the larger.
+    const lines = Math.max(textarea?.lineCount ?? 1, textarea?.virtualLineCount ?? 1)
+    setLineCount(Math.min(Math.max(lines, 1), MAX_INPUT_LINES))
+  }
+
+  const handleContentChange = () => {
+    syncHeight()
+    syncCompletion()
+  }
+
   useEffect(() => {
     void listWorkspaceFiles()
   }, [])
@@ -55,6 +72,7 @@ export const ChatInput = ({
     if (!text) return
 
     textareaRef.current?.clear()
+    syncHeight()
     await onSubmit(text)
   }
 
@@ -62,11 +80,13 @@ export const ChatInput = ({
     <textarea
       ref={textareaRef}
       marginY={marginY}
+      height={lineCount}
+      flexShrink={0}
       placeholder={placeholder}
       keyBindings={chatKeyBindings}
       onSubmit={handleSubmit}
-      onContentChange={syncCompletion}
-      onCursorChange={syncCompletion}
+      onContentChange={handleContentChange}
+      onCursorChange={handleContentChange}
       onKeyDown={handleKeyDown}
       focused={!disabled}
     />

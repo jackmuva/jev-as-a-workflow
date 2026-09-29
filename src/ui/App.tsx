@@ -132,6 +132,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       <scrollbox
         flexGrow={1}
         flexShrink={1}
+        minHeight={0}
         width="100%"
         stickyScroll={true}
         stickyStart="bottom"
@@ -145,22 +146,24 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
           />
         ))}
       </scrollbox>
-      {status === "working" && <WorkingIndicator />}
-      {status === "error" && <text>ERROR</text>}
-      {pendingAsk ? (
-        <ClarifyQuestionBox
-          input={pendingAsk.input}
-          onSubmit={handleAskQuestionSubmit}
-        />
-      ) : (
-        <ChatInput
-          disabled={status === "working" || capabilityPickerOpen}
-          marginY={visibleMessages.length > 0 ? 1 : 0}
-          slashCommandHandlers={slashCommandHandlers}
-          onCompletionChange={handleCompletionChange}
-          onSubmit={handleSubmit}
-        />
-      )}
+      <box flexDirection="column" flexShrink={0} width="100%">
+        {status === "working" && <WorkingIndicator />}
+        {status === "error" && <text>ERROR</text>}
+        {pendingAsk ? (
+          <ClarifyQuestionBox
+            input={pendingAsk.input}
+            onSubmit={handleAskQuestionSubmit}
+          />
+        ) : (
+          <ChatInput
+            disabled={status === "working" || capabilityPickerOpen}
+            marginY={visibleMessages.length > 0 ? 1 : 0}
+            slashCommandHandlers={slashCommandHandlers}
+            onCompletionChange={handleCompletionChange}
+            onSubmit={handleSubmit}
+          />
+        )}
+      </box>
       {completion.open && (
         <CompletionOverlayDialog
           kind={completion.trigger.kind}

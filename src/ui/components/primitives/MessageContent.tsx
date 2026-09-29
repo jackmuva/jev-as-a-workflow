@@ -45,6 +45,15 @@ const hasOnlyToolCalls = (message: ModelMessage): boolean => {
   return message.content.length > 0 && message.content.every((part) => part.type === "tool-call")
 }
 
+// Tools reached via the initial routing step carry its probabilities, keyed by route name.
+const ROUTE_CHOICE_BY_TOOL: Record<string, string> = {
+  AskQuestion: "clarifyTask",
+  CreatePlan: "createPlan",
+}
+
+const selectedChoice = (probabilities: Record<string, number>, toolName: string) =>
+  toolName in probabilities ? toolName : (ROUTE_CHOICE_BY_TOOL[toolName] ?? toolName)
+
 type MessageContentProps = {
   message: JevMessage
   toolCallInputs: Map<string, { toolName: string; input: unknown }>
@@ -85,7 +94,10 @@ export const MessageContent = ({ message: { message, probabilities }, toolCallIn
           if (part.type !== "tool-call") return null
           const toolCall = part as ToolCallPart
           const choices = probabilities ? (
-            <ChoiceProbabilities probabilities={probabilities} selected={toolCall.toolName} />
+            <ChoiceProbabilities
+              probabilities={probabilities}
+              selected={selectedChoice(probabilities, toolCall.toolName)}
+            />
           ) : null
 
           if (

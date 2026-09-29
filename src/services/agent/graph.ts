@@ -16,7 +16,6 @@ import { isCapabilityEnabled } from './capabilities';
 import { askQuestionTool, type AskQuestionInput } from './default-tools/ask-question';
 import { createPlanTool, type CreatePlanInput, wrapPlanToolMessages } from './default-tools/create-plan';
 import {
-  defaultToolKey,
   executeDefaultTool,
   isDefaultToolKey,
   listDefaultTools,
@@ -127,8 +126,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
         type: "choice",
         instructions: "Based off the user's last ask and the tools given, what should we do?",
         criteria: {
-          "answerQuestion": "The user is asking an informational question for the LLM to answer. Use message_answer.",
-          "directAnswer": "The user wants a command or action performed with a single tool call (not message_answer).",
+          "directAnswer": "The user wants a command or action performed with a single tool call.",
           "createPlan": "The user's task is a multi-step problem. We should create a plan.",
           "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
           "outOfScope": "The task is outside of the capabilities given the tools"
@@ -137,6 +135,8 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
     },
   });
 
+  const probabilities = answers.nextStep.probabilities;
+
   if (answers.nextStep.choice === "outOfScope") {
     const message: ModelMessage = {
       role: 'assistant',
@@ -144,17 +144,11 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
     };
     return { state: "END", messages: [...state.messages, jevMessage(message)] };
   } else if (answers.nextStep.choice === "createPlan") {
-    return { state: "PLAN", messages: state.messages };
-  } else if (answers.nextStep.choice === "answerQuestion") {
-    return {
-      state: "EXECUTE",
-      messages: state.messages,
-      selectedTool: defaultToolKey('message_answer'),
-    };
+    return { state: "PLAN", messages: state.messages, probabilities };
   } else if (answers.nextStep.choice === "directAnswer") {
     return { state: "EXECUTE", messages: state.messages };
   } else {
-    return { state: "DISCOVERY", messages: state.messages };
+    return { state: "DISCOVERY", messages: state.messages, probabilities };
   }
 }
 
@@ -200,7 +194,11 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
 
   return {
     state: 'EXECUTE',
-    messages: [...state.messages, jevMessage(toolCallMessage), jevMessage(toolResultMessage)],
+    messages: [
+      ...state.messages,
+      jevMessage(toolCallMessage, state.probabilities),
+      jevMessage(toolResultMessage),
+    ],
   };
 }
 
@@ -234,7 +232,7 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
   };
   return {
     state: 'DISCOVERY',
-    messages: [...state.messages, jevMessage(message)],
+    messages: [...state.messages, jevMessage(message, state.probabilities)],
   };
 }
 
