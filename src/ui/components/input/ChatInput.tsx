@@ -1,5 +1,6 @@
-import type { KeyBinding, TextareaRenderable } from "@opentui/core"
+import type { KeyBinding, KeyEvent, TextareaRenderable } from "@opentui/core"
 import { useEffect, useRef, useState } from "react"
+import { useTerminalDimensions } from "@opentui/react"
 import { listWorkspaceFiles } from "../../lib/input-completion/at-files"
 import { useInputCompletion } from "../../hooks/useInputCompletion"
 import type { SlashCommandActions } from "../../lib/input-completion/slash-commands"
@@ -15,6 +16,9 @@ const chatKeyBindings: KeyBinding[] = [
 ]
 
 const MAX_INPUT_LINES = 8
+const BOX_PADDING_X = 1
+// App root uses padding={1}; pull the input bar out to the terminal edges.
+const APP_PADDING_X = 1
 
 type ChatInputProps = {
   disabled?: boolean
@@ -34,31 +38,40 @@ export const ChatInput = ({
   onSubmit,
 }: ChatInputProps) => {
   const textareaRef = useRef<TextareaRenderable>(null)
+  const { width: terminalWidth } = useTerminalDimensions()
   const {
     completion,
     syncCompletion,
-    handleKeyDown,
+    handleKeyDown: handleCompletionKeyDown,
     handleSubmitAttempt,
+    clearInput,
   } = useInputCompletion({ textareaRef, disabled, slashCommandActions: slashCommandHandlers })
 
   const [lineCount, setLineCount] = useState(1)
 
-  // Textarea has no intrinsic height, so size it to its (wrapped) content.
+  // Textarea has no intrinsic height, so size it to its wrapped content.
   const syncHeight = () => {
     const textarea = textareaRef.current
-    // virtualLineCount (wrapped rows) lags behind edits until the next layout, so take the larger.
-    const lines = Math.max(textarea?.lineCount ?? 1, textarea?.virtualLineCount ?? 1)
+    if (!textarea) return
+
+    const lines = textarea.editorView.getTotalVirtualLineCount()
     setLineCount(Math.min(Math.max(lines, 1), MAX_INPUT_LINES))
   }
 
   const handleContentChange = () => {
     syncHeight()
     syncCompletion()
+    // Wrapped line count can lag one layout pass behind edits.
+    queueMicrotask(syncHeight)
   }
 
   useEffect(() => {
     void listWorkspaceFiles()
   }, [])
+
+  useEffect(() => {
+    syncHeight()
+  }, [terminalWidth])
 
   useEffect(() => {
     onCompletionChange?.(completion)
@@ -76,19 +89,46 @@ export const ChatInput = ({
     await onSubmit(text)
   }
 
+  const handleKeyDown = (event: KeyEvent) => {
+    if (event.name === "c" && event.ctrl) {
+      event.preventDefault()
+      clearInput()
+      syncHeight()
+      return
+    }
+
+    handleCompletionKeyDown(event)
+  }
+
   return (
-    <textarea
-      ref={textareaRef}
+    <box
+      backgroundColor={"#1e1e2e"}
+      paddingLeft={BOX_PADDING_X}
+      paddingRight={BOX_PADDING_X}
+      paddingTop={1}
+      paddingBottom={1}
       marginY={marginY}
-      height={lineCount}
+      marginLeft={-APP_PADDING_X}
+      marginRight={-APP_PADDING_X}
+      width={terminalWidth}
       flexShrink={0}
-      placeholder={placeholder}
-      keyBindings={chatKeyBindings}
-      onSubmit={handleSubmit}
-      onContentChange={handleContentChange}
-      onCursorChange={handleContentChange}
-      onKeyDown={handleKeyDown}
-      focused={!disabled}
-    />
+    >
+      <textarea
+        ref={textareaRef}
+        marginY={0}
+        width="100%"
+        maxWidth="100%"
+        height={lineCount}
+        flexShrink={0}
+        wrapMode="word"
+        placeholder={placeholder}
+        keyBindings={chatKeyBindings}
+        onSubmit={handleSubmit}
+        onContentChange={handleContentChange}
+        onCursorChange={handleContentChange}
+        onKeyDown={handleKeyDown}
+        focused={!disabled}
+      />
+    </box>
   )
 }

@@ -1,11 +1,15 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { App } from "./ui/App"
-import type { CapabilityCatalog } from "./services/agent/capabilities"
+import type { CapabilityCatalog } from "./models/agent"
 import { discoverSkills, frontLoadMessages } from "./services/agent/hooks/front-load"
+import { ensureJevHome, loadAppConfig } from "./services/config/app-config"
 import { jevMessage } from "./services/agent/utils/jev-message"
 import { listUserTools, loadUserTools } from "./services/agent/user-tools/loader"
 import { mcpClient } from "./services/mcp/mcp-client"
+
+await ensureJevHome()
+await loadAppConfig()
 
 let initialMessage: null | string = null
 const seedMessages = (await frontLoadMessages()).map((message) => jevMessage(message))

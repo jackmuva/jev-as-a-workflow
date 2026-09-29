@@ -4,7 +4,7 @@ import type {
   CapabilityCatalog,
   CapabilityKind,
   CapabilitySelection,
-} from "../../../services/agent/capabilities"
+} from "../../../models/agent"
 import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
 
 const DIALOG_WIDTH = 64
