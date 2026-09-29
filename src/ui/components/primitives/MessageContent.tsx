@@ -99,7 +99,11 @@ export const MessageContent = ({ message, toolCallInputs }: MessageContentProps)
           if (part.type !== "tool-call") return null
           const toolCall = part as ToolCallPart
 
-          if (toolCall.toolName === "AskQuestion" || toolCall.toolName.endsWith("/message_answer")) {
+          if (
+            toolCall.toolName === "AskQuestion"
+            || toolCall.toolName === "CreatePlan"
+            || toolCall.toolName.endsWith("/message_answer")
+          ) {
             return null
           }
 

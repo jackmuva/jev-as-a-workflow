@@ -1,19 +1,43 @@
 import type { ToolViewProps } from "../../../models/ui"
-import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
-import { syntaxStyle } from "../../syntax-style"
+import { callTitle, readStringField } from "../../lib/format/utils"
+import { MarkdownToolView } from "../primitives/MarkdownToolView"
+import { ToolFrame } from "../primitives/ToolFrame"
 
-export const MessageAnswerToolResultView = (props: ToolViewProps) => (
-  <box
-    border={["left"]}
-    borderColor={AGENT_BORDER_COLOR}
-    paddingLeft={1}
-    marginBottom={1}
-    width="100%"
-  >
-    {props.isError ? (
-      <text fg="#f7768e">{props.text}</text>
-    ) : (
-      <markdown content={props.text} syntaxStyle={syntaxStyle} />
-    )}
-  </box>
+const answerPreview = (answer: string): string | undefined =>
+  answer.split("\n").find(Boolean)?.trim()
+
+const renderAnswerView = (
+  props: ToolViewProps,
+  answer: string,
+  title: string,
+) => (
+  <MarkdownToolView
+    {...props}
+    toolName={title}
+    content={answer}
+    subtitle={answerPreview(answer)}
+  />
 )
+
+export const MessageAnswerToolCallView = (props: ToolViewProps) => {
+  const answer = readStringField(props.input, "answer") ?? ""
+
+  if (answer) {
+    return renderAnswerView(
+      { ...props, text: "" },
+      answer,
+      callTitle(props.toolName),
+    )
+  }
+
+  return (
+    <ToolFrame title={callTitle(props.toolName)}>
+      <text>Preparing answer...</text>
+    </ToolFrame>
+  )
+}
+
+export const MessageAnswerToolResultView = (props: ToolViewProps) => {
+  const answer = props.text || readStringField(props.input, "answer") || ""
+  return renderAnswerView(props, answer, "Answer")
+}

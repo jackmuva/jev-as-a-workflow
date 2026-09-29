@@ -13,6 +13,7 @@ import type { AgentState } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
 import { askQuestionTool, type AskQuestionInput } from './default-tools/ask-question';
+import { createPlanTool, type CreatePlanInput, wrapPlanToolMessages } from './default-tools/create-plan';
 import {
   defaultToolKey,
   executeDefaultTool,
@@ -37,17 +38,17 @@ const generateRequiredToolCall = async ({
   tools,
   toolName,
   maxAttempts = 3,
+  forceRequired = true,
 }: {
   instructions: string;
   messages: ModelMessage[];
   tools: Record<string, any>;
   toolName: string;
   maxAttempts?: number;
+  forceRequired?: boolean;
 }) => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const toolChoice: ToolChoice<typeof tools> = attempt < maxAttempts - 1
-      ? { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> }
-      : 'required';
+    const toolChoice: ToolChoice<typeof tools> = forceRequired || attempt >= maxAttempts - 1 ? 'required' : { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> };
 
     try {
       const prompt = preparePrompt(instructions, messages);
@@ -154,21 +155,47 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
 }
 
 export const createPlanNode = async (state: AgentState): Promise<AgentState> => {
-  const planPrompt = preparePrompt(
-    `You are a planner. Break the user's task into a short numbered list of steps. \n\nWe have the following tools to complete the task:\n${toolList || '(none)'} \n\nRespond with the plan only.`,
-    state.messages,
-  );
-  const { text } = await generateText({
-    model: LLM_MODEL,
-    instructions: planPrompt.instructions,
-    messages: planPrompt.messages,
+  const planInstructions = `You are a planner. Break the user's task into a short numbered list of steps.
+
+We have the following tools to complete the task:
+${toolList || '(none)'}
+
+Call the CreatePlan tool with the plan as a markdown numbered list.`;
+  const planTools = { CreatePlan: createPlanTool };
+  const planToolName = 'CreatePlan';
+
+  let toolCall = await generateRequiredToolCall({
+    instructions: planInstructions,
+    messages: state.messages,
+    tools: planTools,
+    toolName: planToolName,
+    maxAttempts: 1,
+    forceRequired: true,
   });
 
-  const message: ModelMessage = { role: 'assistant', content: text }
+  if (!toolCall) {
+    toolCall = await generateRequiredToolCall({
+      instructions: planInstructions,
+      messages: state.messages,
+      tools: planTools,
+      toolName: planToolName,
+    });
+  }
+
+  if (!toolCall) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: 'Could not create a plan for this task.',
+    };
+    return { state: 'EXECUTE', messages: [...state.messages, message] };
+  }
+
+  const input = toolCall.input as CreatePlanInput;
+  const [toolCallMessage, toolResultMessage] = wrapPlanToolMessages(input.plan, toolCall.toolCallId);
 
   return {
-    state: "EXECUTE",
-    messages: [...state.messages, message],
+    state: 'EXECUTE',
+    messages: [...state.messages, toolCallMessage, toolResultMessage],
   };
 }
 

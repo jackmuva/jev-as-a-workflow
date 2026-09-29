@@ -117,3 +117,40 @@ export const readNumberField = (input: unknown, key: string, fallback: number): 
 }
 
 export const callTitle = (toolName: string) => `▶ ${toolName}`
+
+export const parsePlanSteps = (text: string): string[] => {
+  const steps: string[] = []
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    const numbered = trimmed.match(/^(?:\d+[.)]\s*|\[\s*[xX ]?\s*\]\s*|-|\*|\+)\s*(.+)$/)
+    const heading = trimmed.match(/^#{1,6}\s+(.+)$/)
+    const step = numbered?.[1] ?? heading?.[1]
+
+    if (step) {
+      steps.push(step.trim())
+    }
+  }
+
+  return steps
+}
+
+export const concatenateSubtitle = (items: string[], maxLength = 72): string => {
+  if (items.length === 0) return ""
+
+  let subtitle = ""
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index]!
+    const candidate = subtitle ? `${subtitle} · ${item}` : item
+
+    if (candidate.length > maxLength && subtitle) {
+      return `${subtitle} · +${items.length - index} more`
+    }
+
+    subtitle = candidate
+  }
+
+  return subtitle
+}

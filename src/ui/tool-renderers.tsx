@@ -9,7 +9,8 @@ import { GlobToolCallView, GlobToolResultView } from "./components/tools/GlobToo
 import { GrepToolCallView, GrepToolResultView } from "./components/tools/GrepToolView"
 import { ListDirToolCallView, ListDirToolResultView } from "./components/tools/ListDirToolView"
 import { ReadToolCallView, ReadToolResultView } from "./components/tools/ReadToolView"
-import { MessageAnswerToolResultView } from "./components/tools/MessageAnswerToolView"
+import { MessageAnswerToolCallView, MessageAnswerToolResultView } from "./components/tools/MessageAnswerToolView"
+import { PlanToolCallView, PlanToolResultView } from "./components/tools/PlanToolView"
 import { WebFetchToolCallView, WebFetchToolResultView } from "./components/tools/WebFetchToolView"
 import { WebSearchToolCallView, WebSearchToolResultView } from "./components/tools/WebSearchToolView"
 import { WriteToolCallView, WriteToolResultView } from "./components/tools/WriteToolView"
@@ -30,6 +31,7 @@ const toolResultComponents: Record<string, ToolComponent> = {
   "default/webfetch": WebFetchToolResultView,
   "default/websearch": WebSearchToolResultView,
   "default/message_answer": MessageAnswerToolResultView,
+  CreatePlan: PlanToolResultView,
 }
 
 const toolCallComponents: Record<string, ToolComponent> = {
@@ -43,7 +45,9 @@ const toolCallComponents: Record<string, ToolComponent> = {
   "default/list_dir": ListDirToolCallView,
   "default/webfetch": WebFetchToolCallView,
   "default/websearch": WebSearchToolCallView,
+  "default/message_answer": MessageAnswerToolCallView,
   AskQuestion: AskQuestionToolCallView,
+  CreatePlan: PlanToolCallView,
 }
 
 const lookupComponent = (

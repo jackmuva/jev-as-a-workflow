@@ -1,0 +1,55 @@
+import type { ToolViewProps } from "../../../models/ui"
+import {
+  callTitle,
+  concatenateSubtitle,
+  parsePlanSteps,
+  readStringField,
+} from "../../lib/format/utils"
+import { ListToolView } from "../primitives/ListToolView"
+import { MarkdownToolView } from "../primitives/MarkdownToolView"
+import { ToolFrame } from "../primitives/ToolFrame"
+
+const renderPlanView = (props: ToolViewProps, planText: string, title = "Plan") => {
+  const steps = parsePlanSteps(planText)
+  const subtitle = concatenateSubtitle(steps) || planText.split("\n").find(Boolean)?.trim()
+
+  if (steps.length > 0) {
+    return (
+      <ListToolView
+        {...props}
+        toolName={title}
+        items={steps}
+        subtitle={subtitle}
+        text={props.text}
+      />
+    )
+  }
+
+  return (
+    <MarkdownToolView
+      {...props}
+      toolName={title}
+      content={planText}
+      subtitle={subtitle}
+    />
+  )
+}
+
+export const PlanToolCallView = (props: ToolViewProps) => {
+  const planText = readStringField(props.input, "plan") ?? ""
+
+  if (planText) {
+    return renderPlanView({ ...props, text: "" }, planText, callTitle(props.toolName))
+  }
+
+  return (
+    <ToolFrame title={callTitle(props.toolName)}>
+      <text>Creating plan...</text>
+    </ToolFrame>
+  )
+}
+
+export const PlanToolResultView = (props: ToolViewProps) => {
+  const planText = props.text || readStringField(props.input, "plan") || ""
+  return renderPlanView(props, planText)
+}

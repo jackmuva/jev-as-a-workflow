@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import {
   buildUnifiedDiff,
+  concatenateSubtitle,
   filetypeFromPath,
   looksLikeLineNumberedOutput,
   parseLineNumberedContent,
+  parsePlanSteps,
 } from "./utils"
 
 describe("parseLineNumberedContent", () => {
@@ -27,6 +29,36 @@ describe("filetypeFromPath", () => {
   test("maps common extensions", () => {
     expect(filetypeFromPath("src/index.tsx")).toBe("tsx")
     expect(filetypeFromPath("script.sh")).toBe("bash")
+  })
+})
+
+describe("parsePlanSteps", () => {
+  test("extracts numbered and bulleted steps", () => {
+    const input = "1. Read the file\n2. Edit the handler\n- Run tests"
+    expect(parsePlanSteps(input)).toEqual([
+      "Read the file",
+      "Edit the handler",
+      "Run tests",
+    ])
+  })
+})
+
+describe("concatenateSubtitle", () => {
+  test("joins items with separators", () => {
+    expect(concatenateSubtitle(["Read file", "Edit handler"])).toBe(
+      "Read file · Edit handler",
+    )
+  })
+
+  test("truncates long subtitles", () => {
+    const subtitle = concatenateSubtitle([
+      "Read the configuration file",
+      "Update the handler logic",
+      "Run the test suite",
+    ], 40)
+
+    expect(subtitle).toContain("· +")
+    expect(subtitle.length).toBeLessThanOrEqual(50)
   })
 })
 
