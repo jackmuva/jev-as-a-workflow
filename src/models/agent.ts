@@ -8,7 +8,7 @@ export type JevMessage = {
   probabilities?: ChoiceProbabilities,
 }
 
-export type STATE = "START" | "DISCOVERY" | "PLAN" | "EXECUTE" | "REWIND" | "END";
+export type STATE = "START" | "DISCOVERY" | "EXECUTE" | "REWIND" | "END";
 export type AgentState = {
   state: STATE,
   messages: JevMessage[],
