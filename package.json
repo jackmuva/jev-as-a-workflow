@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
+    "build": "bun build --compile --outfile jev-workflow-runner src/index.tsx",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
