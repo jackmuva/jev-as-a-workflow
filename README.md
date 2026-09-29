@@ -11,25 +11,76 @@ Jev Workflow Runner is a terminal-based (TUI) application built on [OpenTUI](htt
 
 ## Requirements
 
-- [Bun](https://bun.sh/) 1.3.0 or later
 - MCP servers configured (if you want to use the MCP integration)
+- For development from source: [Bun](https://bun.sh/) 1.3.0 or later
 
 ## Installation
 
+Install the latest release with curl (Linux and macOS):
+
 ```bash
-bun install
+curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-workflow-runner/main/install.sh | sh
 ```
+
+Install a specific version:
+
+```bash
+JEV_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-workflow-runner/main/install.sh | sh
+```
+
+On Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/jackmuva/jev-workflow-runner/main/install.ps1 | iex
+```
+
+The installer downloads a standalone binary and installs it as `jev` (by default to `~/.local/bin` on Unix). No Bun runtime is required on the target machine.
+
+### First-run setup
+
+Create your config directory and MCP config:
+
+```bash
+mkdir -p ~/.jev-workflow-runner
+# Add ~/.jev-workflow-runner/mcp.json with your MCP server configuration
+```
+
+Optional local skills can be placed in `~/.jev-workflow-runner/skills/`.
 
 ## Usage
 
+Run the installed binary:
+
 ```bash
+jev
+```
+
+## Development
+
+Install dependencies and run in watch mode:
+
+```bash
+bun install
 bun dev
+```
+
+Build a local standalone binary:
+
+```bash
+bun run build
+./jev-workflow-runner
+```
+
+Build release binaries for all supported platforms:
+
+```bash
+bun run build:all
 ```
 
 ## Typecheck
 
 ```bash
-bun run typecheck
+bun run lint
 ```
 
 ## Project Structure
