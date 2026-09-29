@@ -14,7 +14,8 @@ export type SkillSummary = {
   path: string;
 };
 
-const SKILLS_DIRS = [
+export const getSkillsDirs = (cwd = process.cwd()): string[] => [
+  join(resolve(cwd), 'skills'),
   join(JEV_HOME, 'skills'),
   join(homedir(), '.cursor', 'skills-cursor'),
 ];
@@ -61,7 +62,7 @@ const parseSkillFile = async (skillPath: string, dirName: string): Promise<Skill
   return { name, description, path: skillPath };
 };
 
-export const discoverSkills = async (dirs = SKILLS_DIRS): Promise<SkillSummary[]> => {
+export const discoverSkills = async (dirs = getSkillsDirs()): Promise<SkillSummary[]> => {
   const byName = new Map<string, SkillSummary>();
 
   for (const dir of dirs) {
@@ -132,7 +133,7 @@ export const frontLoadMessages = async (
     }
   }
 
-  const skills = (await discoverSkills(options?.skillsDirs))
+  const skills = (await discoverSkills(options?.skillsDirs ?? getSkillsDirs(rootDir)))
     .filter((skill) => isCapabilityEnabled('skills', skill.name));
   skillRegistry = new Map(skills.map((skill) => [skill.name, skill]));
   if (skills.length > 0) {
