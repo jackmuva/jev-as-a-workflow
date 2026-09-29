@@ -77,6 +77,17 @@ Build release binaries for all supported platforms:
 bun run build:all
 ```
 
+## Releasing
+
+Create and push a new version tag:
+
+```bash
+git tag -a v0.1.1 -m "v0.1.1"
+git push origin v0.1.1
+```
+
+Replace `v0.1.1` with the version you are releasing. Tags are pushed to GitHub and picked up by the release workflow.
+
 ## Typecheck
 
 ```bash
