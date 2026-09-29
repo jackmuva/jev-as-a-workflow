@@ -42,7 +42,7 @@ export const ToolFrame = ({
       {subtitle ? <text fg="#7aa2f7">{subtitle}</text> : null}
       <box
         width="100%"
-        height={expanded ? "auto" : maxHeight}
+        maxHeight={expanded ? undefined : maxHeight}
         overflow={expanded ? undefined : "hidden"}
       >
         {children}
