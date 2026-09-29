@@ -52,14 +52,13 @@ jobs:
 
       - run: bun install
 
+      - name: Install OpenTUI native packages for all platforms
+        run: bun run install:opentui-platforms
+
       - name: Compile binary
         shell: bash
         run: |
-          mkdir -p dist
-          bun build --compile \
-            --target=${{ matrix.target }} \
-            --outfile=dist/${{ matrix.artifact }} \
-            src/index.tsx
+          bun run build:${{ matrix.label }}
           ls -lh dist/${{ matrix.artifact }}
 
       - uses: actions/upload-artifact@v4
