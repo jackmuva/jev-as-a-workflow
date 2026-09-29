@@ -34,7 +34,7 @@ On Windows (PowerShell):
 irm https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.ps1 | iex
 ```
 
-The installer downloads a standalone binary and installs it as `jev` (by default to `~/.local/bin` on Unix). No Bun runtime is required on the target machine.
+The installer downloads a standalone binary and installs it as `jaaw` (by default to `~/.local/bin` on Unix). No Bun runtime is required on the target machine.
 
 ### First-run setup
 
@@ -52,7 +52,7 @@ Optional local skills can be placed in `~/.jaaw/skills/`.
 Run the installed binary:
 
 ```bash
-jev
+jaaw
 ```
 
 ## Development

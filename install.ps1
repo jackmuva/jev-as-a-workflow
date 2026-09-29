@@ -9,8 +9,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not $Version) { $Version = "latest" }
-if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\jev" }
-if (-not $BinName) { $BinName = "jev" }
+if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\jaaw" }
+if (-not $BinName) { $BinName = "jaaw" }
 if (-not $Repo) { $Repo = "jackmuva/jev-as-a-workflow" }
 
 function Resolve-ReleaseTag {
