@@ -7,7 +7,7 @@ export const SLASH_COMMANDS: SlashCommandDefinition[] = [
   },
   {
     name: "resume",
-    description: "Reload the saved conversation from SQLite",
+    description: "Choose a saved session to resume",
   },
 ]
 

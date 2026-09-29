@@ -1,6 +1,6 @@
 import type { ModelMessage } from 'ai';
 import { resolve } from 'node:path';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { SessionStore, type SessionRecord } from '../../services/session/store';
 
 type SetMessagesAction = ModelMessage[] | ((previous: ModelMessage[]) => ModelMessage[]);
@@ -9,7 +9,8 @@ export type UseSessionPersistenceResult = {
   messages: ModelMessage[];
   setMessages: (update: SetMessagesAction) => void;
   clearSession: () => void;
-  resumeSession: () => void;
+  getSessions: () => SessionRecord[];
+  resumeSession: (sessionId: string) => void;
   session: SessionRecord;
 };
 
@@ -19,13 +20,9 @@ export const useSessionPersistence = (
 ): UseSessionPersistenceResult => {
   const store = useMemo(() => SessionStore.open(), []);
   const workspace = useMemo(() => resolve(workspacePath), [workspacePath]);
-  const sessionRef = useRef<SessionRecord | null>(null);
-
-  if (!sessionRef.current) {
-    sessionRef.current = store.getOrCreateSession(workspace);
-  }
-
-  const session = sessionRef.current;
+  const [session, setSession] = useState<SessionRecord>(() =>
+    store.getOrCreateSession(workspace),
+  );
 
   const [messages, setMessagesState] = useState<ModelMessage[]>(() => {
     const saved = store.loadMessages(session.id);
@@ -46,10 +43,16 @@ export const useSessionPersistence = (
     setMessagesState(next);
   }, [seedMessages, session.id, store]);
 
-  const resumeSession = useCallback(() => {
-    const saved = store.loadMessages(session.id);
-    setMessagesState([...seedMessages, ...saved]);
-  }, [seedMessages, session.id, store]);
+  const getSessions = useCallback(() => store.listSessions(workspace), [store, workspace]);
 
-  return { messages, setMessages, clearSession, resumeSession, session };
+  const resumeSession = useCallback((sessionId: string) => {
+    const target = store.listSessions(workspace).find((entry) => entry.id === sessionId);
+    if (!target) return;
+
+    setSession(target);
+    const saved = store.loadMessages(sessionId);
+    setMessagesState([...seedMessages, ...saved]);
+  }, [seedMessages, store, workspace]);
+
+  return { messages, setMessages, clearSession, getSessions, resumeSession, session };
 };

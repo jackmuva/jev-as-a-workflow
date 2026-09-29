@@ -6,6 +6,7 @@ import { findPendingAskQuestion } from "../services/agent/utils/ask-question-sta
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format/format"
 import { CompletionOverlayDialog } from "./components/input/CompletionOverlayDialog"
+import { SessionSelectionDialog } from "./components/session/SessionSelectionDialog"
 import { ChatInput } from "./components/input/ChatInput"
 import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
@@ -19,9 +20,17 @@ type AppProps = {
 }
 
 export function App({ initialMessage, seedMessages }: AppProps) {
-  const { messages, setMessages, clearSession, resumeSession } = useSessionPersistence(seedMessages)
+  const {
+    messages,
+    setMessages,
+    clearSession,
+    getSessions,
+    resumeSession,
+    session,
+  } = useSessionPersistence(seedMessages)
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
   const [completion, setCompletion] = useState<CompletionState>({ open: false })
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
   const { width, height } = useTerminalDimensions()
   const pendingAsk = findPendingAskQuestion(messages)
 
@@ -36,9 +45,21 @@ export function App({ initialMessage, seedMessages }: AppProps) {
   )
 
   const slashCommandHandlers = useMemo(
-    () => ({ clearSession, resumeSession }),
-    [clearSession, resumeSession],
+    () => ({
+      clearSession,
+      resumeSession: () => setSessionPickerOpen(true),
+    }),
+    [clearSession],
   )
+
+  const handleSessionSelect = useCallback((sessionId: string) => {
+    resumeSession(sessionId)
+    setSessionPickerOpen(false)
+  }, [resumeSession])
+
+  const handleSessionPickerDismiss = useCallback(() => {
+    setSessionPickerOpen(false)
+  }, [])
 
   const handleCompletionChange = useCallback((next: CompletionState) => {
     setCompletion(next)
@@ -115,6 +136,16 @@ export function App({ initialMessage, seedMessages }: AppProps) {
           kind={completion.trigger.kind}
           items={completion.items}
           selectedIndex={completion.selectedIndex}
+          terminalWidth={width}
+          terminalHeight={height}
+        />
+      )}
+      {sessionPickerOpen && (
+        <SessionSelectionDialog
+          sessions={getSessions()}
+          currentSessionId={session.id}
+          onSelect={handleSessionSelect}
+          onDismiss={handleSessionPickerDismiss}
           terminalWidth={width}
           terminalHeight={height}
         />
