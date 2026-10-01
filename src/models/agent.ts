@@ -24,7 +24,7 @@ export type UserToolDefinition = {
   execute: (args: Record<string, unknown>) => Promise<string>;
 };
 
-export type CapabilityKind = 'skills' | 'mcpServers' | 'userTools';
+export type CapabilityKind = 'skills' | 'mcpServers' | 'userTools' | 'agentsMd';
 
 export type CapabilitySelection = Record<CapabilityKind, string[]>;
 

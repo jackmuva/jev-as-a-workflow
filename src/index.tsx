@@ -2,7 +2,7 @@ import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { App } from "./ui/App"
 import type { CapabilityCatalog } from "./models/agent"
-import { discoverSkills, frontLoadMessages } from "./services/agent/hooks/front-load"
+import { discoverAgentsMd, discoverSkills, frontLoadMessages } from "./services/agent/hooks/front-load"
 import { ensureJevHome, loadAppConfig } from "./services/config/app-config"
 import { jevMessage } from "./services/agent/utils/jev-message"
 import { listUserTools, loadUserTools } from "./services/agent/user-tools/loader"
@@ -27,6 +27,7 @@ const capabilityCatalog: CapabilityCatalog = {
   skills: await discoverSkills(),
   mcpServers: mcpClient.listServers().map((name) => ({ name })),
   userTools: listUserTools(),
+  agentsMd: await discoverAgentsMd(),
 }
 
 process.on("exit", () => { void mcpClient.close() })

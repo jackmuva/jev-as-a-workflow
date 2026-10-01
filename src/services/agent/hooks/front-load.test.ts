@@ -2,7 +2,15 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setCapabilitySelection } from '../capabilities';
-import { discoverSkills, frontLoadMessages, getSkillsDirs, listSkills, loadSkillContent } from './front-load';
+import {
+  AGENTS_MD_FILENAME,
+  discoverAgentsMd,
+  discoverSkills,
+  frontLoadMessages,
+  getSkillsDirs,
+  listSkills,
+  loadSkillContent,
+} from './front-load';
 
 const tempRoot = join(import.meta.dir, '__fixtures__', 'skills-front-load');
 
@@ -81,7 +89,12 @@ describe('frontLoadMessages skills', () => {
       await writeFile(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name} description\n---\nBody`);
     }
 
-    setCapabilitySelection({ skills: ['kept-skill'], mcpServers: [], userTools: [] });
+    setCapabilitySelection({
+      skills: ['kept-skill'],
+      mcpServers: [],
+      userTools: [],
+      agentsMd: [],
+    });
     const messages = await frontLoadMessages(tempRoot, { skillsDirs: [join(tempRoot, 'skills')] });
     const catalog = messages.map((message) => String(message.content)).join('\n');
 
@@ -89,5 +102,40 @@ describe('frontLoadMessages skills', () => {
     expect(catalog).not.toContain('dropped-skill description');
     expect(listSkills().map((skill) => skill.name)).toEqual(['kept-skill']);
     expect(await loadSkillContent('dropped-skill')).toBeNull();
+  });
+});
+
+describe('frontLoadMessages agents md', () => {
+  test('discovers AGENTS.md when present', async () => {
+    await mkdir(tempRoot, { recursive: true });
+    await writeFile(join(tempRoot, AGENTS_MD_FILENAME), '# Agent guide\nFollow repo conventions.');
+
+    await expect(discoverAgentsMd(tempRoot)).resolves.toEqual([{
+      name: AGENTS_MD_FILENAME,
+      description: 'Workspace agent instructions loaded at session start',
+    }]);
+  });
+
+  test('only front-loads AGENTS.md when enabled', async () => {
+    await mkdir(tempRoot, { recursive: true });
+    await writeFile(join(tempRoot, AGENTS_MD_FILENAME), 'Always load these instructions.');
+
+    setCapabilitySelection({
+      skills: [],
+      mcpServers: [],
+      userTools: [],
+      agentsMd: [],
+    });
+    const disabled = await frontLoadMessages(tempRoot);
+    expect(disabled.map((message) => String(message.content)).join('\n')).not.toContain('Always load these instructions.');
+
+    setCapabilitySelection({
+      skills: [],
+      mcpServers: [],
+      userTools: [],
+      agentsMd: [AGENTS_MD_FILENAME],
+    });
+    const enabled = await frontLoadMessages(tempRoot);
+    expect(enabled.map((message) => String(message.content)).join('\n')).toContain('Always load these instructions.');
   });
 });

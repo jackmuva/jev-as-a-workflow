@@ -62,6 +62,22 @@ const parseSkillFile = async (skillPath: string, dirName: string): Promise<Skill
   return { name, description, path: skillPath };
 };
 
+export const discoverAgentsMd = async (
+  rootDir = process.cwd(),
+): Promise<Array<{ name: string, description?: string }>> => {
+  const agentsPath = join(rootDir, AGENTS_MD_FILENAME);
+  const agentsFile = Bun.file(agentsPath);
+  if (!(await agentsFile.exists())) return [];
+
+  const content = (await agentsFile.text()).trim();
+  if (!content) return [];
+
+  return [{
+    name: AGENTS_MD_FILENAME,
+    description: 'Workspace agent instructions loaded at session start',
+  }];
+};
+
 export const discoverSkills = async (dirs = getSkillsDirs()): Promise<SkillSummary[]> => {
   const byName = new Map<string, SkillSummary>();
 
@@ -126,7 +142,10 @@ export const frontLoadMessages = async (
 
   const agentsPath = join(rootDir, AGENTS_MD_FILENAME);
   const agentsFile = Bun.file(agentsPath);
-  if (await agentsFile.exists()) {
+  if (
+    await agentsFile.exists()
+    && isCapabilityEnabled('agentsMd', AGENTS_MD_FILENAME)
+  ) {
     const content = (await agentsFile.text()).trim();
     if (content) {
       messages.push({ role: 'system', content });
