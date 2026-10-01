@@ -74,6 +74,9 @@ const generateRequiredToolCall = async ({
   return undefined;
 };
 
+const CREATE_PLAN_ACTION = 'CreatePlan';
+const ASK_QUESTION_ACTION = 'AskQuestion';
+
 const buildToolCriteria = (tools: McpTool[]) => {
   let criteria: {
     [action: string]: {
@@ -87,6 +90,12 @@ const buildToolCriteria = (tools: McpTool[]) => {
 
   criteria = {
     ...criteria,
+    [CREATE_PLAN_ACTION]: {
+      description: 'Create or revise a numbered plan based on progress and new information.',
+    },
+    [ASK_QUESTION_ACTION]: {
+      description: 'Ask follow-up questions when the task needs more clarity.',
+    },
     taskCompleted: {
       description: "The user's task was completed"
     },
@@ -150,90 +159,6 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
   } else {
     return { state: "DISCOVERY", messages: state.messages, probabilities };
   }
-}
-
-export const createPlanNode = async (state: AgentState): Promise<AgentState> => {
-  const toolList = formatToolList(await listAllTools());
-  const planInstructions = `You are a planner. Break the user's task into a short numbered list of steps.
-
-We have the following tools to complete the task:
-${toolList || '(none)'}
-
-Call the CreatePlan tool with the plan as a markdown numbered list.`;
-  const planTools = { CreatePlan: createPlanTool };
-  const planToolName = 'CreatePlan';
-
-  let toolCall = await generateRequiredToolCall({
-    instructions: planInstructions,
-    messages: state.messages,
-    tools: planTools,
-    toolName: planToolName,
-    maxAttempts: 1,
-    forceRequired: true,
-  });
-
-  if (!toolCall) {
-    toolCall = await generateRequiredToolCall({
-      instructions: planInstructions,
-      messages: state.messages,
-      tools: planTools,
-      toolName: planToolName,
-    });
-  }
-
-  if (!toolCall) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'Could not create a plan for this task.',
-    };
-    return { state: 'EXECUTE', messages: [...state.messages, jevMessage(message)] };
-  }
-
-  const input = toolCall.input as CreatePlanInput;
-  const [toolCallMessage, toolResultMessage] = wrapPlanToolMessages(input.plan, toolCall.toolCallId);
-
-  return {
-    state: 'EXECUTE',
-    messages: [
-      ...state.messages,
-      jevMessage(toolCallMessage, state.probabilities),
-      jevMessage(toolResultMessage),
-    ],
-  };
-}
-
-export const clarifyTaskNode = async (state: AgentState): Promise<AgentState> => {
-  const toolCall = await generateRequiredToolCall({
-    instructions: `You are helping clarify an ambiguous user task before work begins. Ask 1-3 focused follow-up questions to resolve what is unclear.
-
-
-Call the AskQuestion tool with concrete options for each question. Provide 2-4 likely answers per question based on the task and available tools. Always include an option with id "other" and label "Other" so the user can type a custom answer.`,
-    messages: state.messages,
-    tools: { AskQuestion: askQuestionTool },
-    toolName: 'AskQuestion',
-  });
-  if (!toolCall) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'I need a bit more detail to proceed. Could you clarify your request?',
-    };
-    return { state: 'DISCOVERY', messages: [...state.messages, jevMessage(message)] };
-  }
-
-  const input = toolCall.input as AskQuestionInput;
-  const message: ModelMessage = {
-    role: 'assistant',
-    content: [{
-      type: 'tool-call',
-      toolCallId: toolCall.toolCallId,
-      toolName: 'AskQuestion',
-      input,
-    }],
-  };
-  return {
-    state: 'DISCOVERY',
-    messages: [...state.messages, jevMessage(message, state.probabilities)],
-  };
 }
 
 export const actionSelectNode = async (
@@ -320,6 +245,91 @@ export const actionSelectNode = async (
   };
 }
 
+export const createPlanNode = async (state: AgentState): Promise<AgentState> => {
+  const toolList = formatToolList(await listAllTools());
+  const planInstructions = `You are a planner. Break the user's task into a short numbered list of steps.
+If a plan already exists, revise it to reflect new information.
+
+We have the following tools to complete the task:
+${toolList || '(none)'}
+
+Call the CreatePlan tool with the plan as a markdown numbered list.`;
+
+  let toolCall = await generateRequiredToolCall({
+    instructions: planInstructions,
+    messages: state.messages,
+    tools: { CreatePlan: createPlanTool },
+    toolName: CREATE_PLAN_ACTION,
+    maxAttempts: 1,
+    forceRequired: true,
+  });
+
+  if (!toolCall) {
+    toolCall = await generateRequiredToolCall({
+      instructions: planInstructions,
+      messages: state.messages,
+      tools: { CreatePlan: createPlanTool },
+      toolName: CREATE_PLAN_ACTION,
+    });
+  }
+
+  if (!toolCall) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: 'Could not create a plan for this task.',
+    };
+    return { state: 'EXECUTE', messages: [...state.messages, jevMessage(message)] };
+  }
+
+  const input = toolCall.input as CreatePlanInput;
+  const [toolCallMessage, toolResultMessage] = wrapPlanToolMessages(input.plan, toolCall.toolCallId);
+
+  return {
+    state: 'EXECUTE',
+    messages: [
+      ...state.messages,
+      jevMessage(toolCallMessage, state.probabilities),
+      jevMessage(toolResultMessage),
+    ],
+  };
+};
+
+export const clarifyTaskNode = async (state: AgentState): Promise<AgentState> => {
+  const toolCall = await generateRequiredToolCall({
+    instructions: `You are helping clarify an ambiguous user task. Ask 1-3 focused follow-up questions to resolve what is unclear.
+
+
+Call the AskQuestion tool with concrete options for each question. Provide 2-4 likely answers per question based on the task and available tools. Always include an option with id "other" and label "Other" so the user can type a custom answer.`,
+    messages: state.messages,
+    tools: { AskQuestion: askQuestionTool },
+    toolName: ASK_QUESTION_ACTION,
+  });
+
+  if (!toolCall) {
+    const message: ModelMessage = {
+      role: 'assistant',
+      content: 'I need a bit more detail to proceed. Could you clarify your request?',
+    };
+    return { state: 'DISCOVERY', messages: [...state.messages, jevMessage(message)] };
+  }
+
+  const input = toolCall.input as AskQuestionInput;
+  const message: ModelMessage = {
+    role: 'assistant',
+    content: [{
+      type: 'tool-call',
+      toolCallId: toolCall.toolCallId,
+      toolName: ASK_QUESTION_ACTION,
+      input,
+    }],
+  };
+
+  return {
+    state: 'DISCOVERY',
+    messages: [...state.messages, jevMessage(message, state.probabilities)],
+  };
+};
+
 export const runToolNode = async (state: AgentState): Promise<AgentState> => {
   const selectedTool = state.selectedTool;
   if (!selectedTool) {
@@ -328,6 +338,14 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
       content: 'No tool selected to run.',
     };
     return { state: 'END', messages: [...state.messages, jevMessage(message)] };
+  }
+
+  if (selectedTool === CREATE_PLAN_ACTION) {
+    return createPlanNode(state);
+  }
+
+  if (selectedTool === ASK_QUESTION_ACTION) {
+    return clarifyTaskNode(state);
   }
 
   const availableTools = await listAllTools();

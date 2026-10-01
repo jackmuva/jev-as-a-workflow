@@ -26,6 +26,9 @@ export const jevLoop = async (
   state = sync(await compactionHook(state));
   state = sync(await initialNode(state));
   state = sync(await compactionHook(state));
+  if (state.state === "END") {
+    return;
+  }
   if (state.state === "PLAN") {
     state = sync(await createPlanNode(state));
   } else if (state.state === "DISCOVERY") {
@@ -45,6 +48,9 @@ export const jevLoop = async (
     }
     if (state.state === "EXECUTE") {
       state = sync(await runToolNode(state));
+      if (state.state === "DISCOVERY" || findPendingAskQuestion(state.messages)) {
+        return;
+      }
       state = { ...state, selectedTool: undefined, probabilities: undefined };
       state = sync(await compactionHook(state));
     }
