@@ -17,7 +17,6 @@ const chatKeyBindings: KeyBinding[] = [
 
 const MAX_INPUT_LINES = 8
 const BOX_PADDING_X = 1
-// App root uses padding={1}; pull the input bar out to the terminal edges.
 const APP_PADDING_X = 1
 
 type ChatInputProps = {
@@ -108,9 +107,7 @@ export const ChatInput = ({
       paddingTop={1}
       paddingBottom={1}
       marginY={marginY}
-      marginLeft={-APP_PADDING_X}
-      marginRight={-APP_PADDING_X}
-      width={terminalWidth}
+      marginX={1}
       flexShrink={0}
     >
       <textarea

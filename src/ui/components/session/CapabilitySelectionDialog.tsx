@@ -11,7 +11,15 @@ const DIALOG_WIDTH = 64
 const DIALOG_PADDING = 2
 const DIALOG_BORDER = 2
 const MAX_VISIBLE_ROWS = 14
-const INSTRUCTIONS = "←/→ tabs · ↑/↓ navigate · Space toggle · A select all · Enter apply · Esc cancel"
+const INSTRUCTION_SEGMENTS = [
+  "←/→ tabs",
+  "↑/↓ navigate",
+  "Space toggle",
+  "A select all",
+  "Enter apply",
+  "Esc cancel",
+]
+const INSTRUCTION_SEPARATOR = " · "
 const ACCENT_FG = "#7aa2f7"
 const TEXT_FG = "#c0caf5"
 const MUTED_FG = "#565f89"
@@ -43,6 +51,27 @@ type CapabilitySelectionDialogProps = {
   onDismiss: () => void
   terminalWidth: number
   terminalHeight: number
+}
+
+const truncate = (text: string, width: number) =>
+  text.length > width ? `${text.slice(0, Math.max(0, width - 1))}…` : text
+
+// Greedily packs instruction segments into lines that fit `width`, so the
+// rendered line count is known up front and the list height can be sized exactly.
+const layoutInstructions = (width: number) => {
+  const lines: string[] = []
+  let current = ""
+  for (const segment of INSTRUCTION_SEGMENTS) {
+    const candidate = current ? `${current}${INSTRUCTION_SEPARATOR}${segment}` : segment
+    if (current && candidate.length > width) {
+      lines.push(current)
+      current = segment
+    } else {
+      current = candidate
+    }
+  }
+  if (current) lines.push(current)
+  return lines.map((line) => truncate(line, width))
 }
 
 const toSets = (selection: CapabilitySelection) => ({
@@ -169,7 +198,15 @@ export const CapabilitySelectionDialog = ({
 
   const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(28, terminalWidth - 4))
   const innerWidth = dialogWidth - DIALOG_BORDER - DIALOG_PADDING
-  const headerLines = 4 + Math.ceil(INSTRUCTIONS.length / innerWidth)
+  const instructionLines = layoutInstructions(innerWidth)
+  // title + totals + (margin + tabs) + (margin + tab totals)? + (margin + instructions) + list margin
+  const headerLines =
+    1
+    + 1
+    + 2
+    + (activeItems.length > 0 ? 2 : 0)
+    + 1 + instructionLines.length
+    + 1
   const chromeLines = headerLines + DIALOG_PADDING + DIALOG_BORDER
   const listHeight = Math.max(
     1,
@@ -184,9 +221,6 @@ export const CapabilitySelectionDialog = ({
     Math.max(0, cursor - Math.floor(listHeight / 2)),
   )
   const visibleRows = rows.slice(scrollStart, scrollStart + listHeight)
-
-  const truncate = (text: string, width: number) =>
-    text.length > width ? `${text.slice(0, Math.max(0, width - 1))}…` : text
 
   return (
     <>
@@ -243,11 +277,26 @@ export const CapabilitySelectionDialog = ({
           </text>
         )}
 
-        <text fg={MUTED_FG} flexShrink={0} marginTop={1}>{INSTRUCTIONS}</text>
+        <box flexDirection="column" width="100%" flexShrink={0} marginTop={1}>
+          {instructionLines.map((line, index) => (
+            <text key={`instructions-${index}`} fg={MUTED_FG} flexShrink={0} wrapMode="none">
+              {line}
+            </text>
+          ))}
+        </box>
 
-        <box flexDirection="column" height={listHeight} flexShrink={0} marginTop={1}>
+        <box
+          flexDirection="column"
+          width="100%"
+          height={listHeight}
+          flexShrink={0}
+          marginTop={1}
+          overflow="hidden"
+        >
           {rows.length === 0 ? (
-            <text fg={MUTED_FG} flexShrink={0}>{EMPTY_MESSAGES[activeKind]}</text>
+            <text fg={MUTED_FG} flexShrink={0} wrapMode="none">
+              {truncate(EMPTY_MESSAGES[activeKind], innerWidth)}
+            </text>
           ) : (
             visibleRows.map((row, offset) => {
               const index = scrollStart + offset
@@ -267,6 +316,7 @@ export const CapabilitySelectionDialog = ({
                   fg={highlighted ? TEXT_FG : row.type === "selectAll" ? TEXT_FG : MUTED_FG}
                   bg={highlighted ? HIGHLIGHT_BG : undefined}
                   flexShrink={0}
+                  wrapMode="none"
                 >
                   {line}
                 </text>

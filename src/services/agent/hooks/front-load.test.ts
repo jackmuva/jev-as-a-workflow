@@ -34,6 +34,7 @@ describe('frontLoadMessages skills', () => {
       ].join('\n'),
     );
 
+    setCapabilitySelection({ skills: ['demo-skill'], mcpServers: [], userTools: [], agentsMd: [] });
     const messages = await frontLoadMessages(tempRoot, { skillsDirs: [join(tempRoot, 'skills')] });
     const catalog = messages.find(
       (message) => message.role === 'system' && String(message.content).includes('<available_skills>'),
@@ -59,6 +60,7 @@ describe('frontLoadMessages skills', () => {
       '---\nname: workspace-skill\ndescription: Workspace-local skill.\n---\nBody',
     );
 
+    setCapabilitySelection({ skills: ['workspace-skill'], mcpServers: [], userTools: [], agentsMd: [] });
     const messages = await frontLoadMessages(tempRoot, { skillsDirs: getSkillsDirs(tempRoot) });
     const catalog = messages.map((message) => String(message.content)).join('\n');
 

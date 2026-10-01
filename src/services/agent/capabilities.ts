@@ -8,14 +8,15 @@ export const setCapabilitySelection = (next: CapabilitySelection) => {
   selection = next;
 };
 
+// Capabilities are off until the user explicitly enables them.
 export const isCapabilityEnabled = (kind: CapabilityKind, name: string) =>
-  selection === null || selection[kind].includes(name);
+  selection !== null && selection[kind].includes(name);
 
-export const selectAllCapabilities = (catalog: CapabilityCatalog): CapabilitySelection => ({
-  skills: catalog.skills.map((entry) => entry.name),
-  mcpServers: catalog.mcpServers.map((entry) => entry.name),
-  userTools: catalog.userTools.map((entry) => entry.name),
-  agentsMd: catalog.agentsMd.map((entry) => entry.name),
+export const emptyCapabilitySelection = (): CapabilitySelection => ({
+  skills: [],
+  mcpServers: [],
+  userTools: [],
+  agentsMd: [],
 });
 
 export const isCatalogEmpty = (catalog: CapabilityCatalog) =>

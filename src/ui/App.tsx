@@ -3,8 +3,8 @@ import { useCallback, useMemo, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import {
   getCapabilitySelection,
+  emptyCapabilitySelection,
   isCatalogEmpty,
-  selectAllCapabilities,
   setCapabilitySelection,
 } from "../services/agent/capabilities"
 import { frontLoadMessages } from "../services/agent/hooks/front-load"
@@ -186,7 +186,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       {capabilityPickerOpen && (
         <CapabilitySelectionDialog
           catalog={capabilityCatalog}
-          initialSelection={getCapabilitySelection() ?? selectAllCapabilities(capabilityCatalog)}
+          initialSelection={getCapabilitySelection() ?? emptyCapabilitySelection()}
           onConfirm={handleCapabilityConfirm}
           onDismiss={() => setCapabilityPickerOpen(false)}
           terminalWidth={width}
