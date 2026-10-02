@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { WorkflowStore } from './store';
+import { WorkflowStore } from './workflow-store';
 
 describe('WorkflowStore', () => {
   test('saves and lists workflows for a workspace', () => {

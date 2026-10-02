@@ -165,17 +165,6 @@ export const actionSelectNode = async (
   state: AgentState,
 ): Promise<{ state: AgentState, options: string[] }> => {
   const availableTools = await listAllTools();
-  if (availableTools.length === 0) {
-    const message: ModelMessage = {
-      role: 'assistant',
-      content: 'No tools available to complete this task.',
-    };
-    return {
-      state: { state: 'END', messages: [...state.messages, jevMessage(message)] },
-      options: [],
-    };
-  }
-
   const criteria = buildToolCriteria(availableTools);
 
   const { answers } = await evaluate({
@@ -195,8 +184,7 @@ export const actionSelectNode = async (
 
   const threshold = 1 / (availableTools.length * 2);
   const probabilities = answers.selectedAction.probabilities ?? { [answers.selectedAction.choice]: 1 };
-  const options = Object.entries(probabilities)
-    .filter(([, probability]) => probability > threshold)
+  const options = Object.entries(probabilities).filter(([, probability]) => probability > threshold)
     .sort(([, a], [, b]) => b - a)
     .map(([key]) => key);
 

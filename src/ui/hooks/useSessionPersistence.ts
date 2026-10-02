@@ -1,7 +1,7 @@
 import type { JevMessage } from '../../models/agent';
 import { resolve } from 'node:path';
 import { useCallback, useMemo, useState } from 'react';
-import { SessionStore, type SessionRecord } from '../../services/session/store';
+import { SessionStore, type SessionRecord } from '../../db/session-store';
 
 type SetMessagesAction = JevMessage[] | ((previous: JevMessage[]) => JevMessage[]);
 

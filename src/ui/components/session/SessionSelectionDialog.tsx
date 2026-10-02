@@ -1,7 +1,7 @@
 import type { SelectOption } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import { useEffect, useMemo, useState } from "react"
-import type { SessionRecord } from "../../../services/session/store"
+import type { SessionRecord } from "../../../db/session-store"
 import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
 
 const MAX_VISIBLE_ITEMS = 6

@@ -8,7 +8,6 @@ export const setCapabilitySelection = (next: CapabilitySelection) => {
   selection = next;
 };
 
-// Capabilities are off until the user explicitly enables them.
 export const isCapabilityEnabled = (kind: CapabilityKind, name: string) =>
   selection !== null && selection[kind].includes(name);
 

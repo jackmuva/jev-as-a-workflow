@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { JevMessage } from '../../models/agent';
-import { SessionStore } from './store';
+import type { JevMessage } from '../models/agent';
+import { SessionStore } from './session-store';
 
 describe('SessionStore', () => {
   test('creates and resumes a workspace session', () => {

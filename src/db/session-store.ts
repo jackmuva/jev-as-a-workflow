@@ -2,11 +2,8 @@ import { Database } from 'bun:sqlite';
 import type { ModelMessage } from 'ai';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { join } from 'node:path';
-import { JEV_HOME } from '../../constants';
-import type { JevMessage } from '../../models/agent';
-
-const SESSION_DB_PATH = join(JEV_HOME, 'sessions.db');
+import { DB_PATH, JEV_HOME } from '../constants';
+import type { JevMessage } from '../models/agent';
 
 export type SessionRecord = {
   id: string;
@@ -75,7 +72,7 @@ export class SessionStore {
     initSchema(db);
   }
 
-  static open(path = SESSION_DB_PATH): SessionStore {
+  static open(path = DB_PATH): SessionStore {
     mkdirSync(JEV_HOME, { recursive: true });
     const db = new Database(path, { create: true });
     return new SessionStore(db);

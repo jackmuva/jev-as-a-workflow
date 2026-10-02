@@ -12,7 +12,7 @@ import { findPendingAskQuestion } from "../services/agent/utils/ask-question-sta
 import { jevMessage } from "../services/agent/utils/jev-message"
 import { buildWorkflowUserMessage } from "../services/workflow/build-message"
 import { generateWorkflowFromSession, WorkflowGenerationError } from "../services/workflow/generate"
-import { WorkflowStore } from "../services/workflow/store"
+import { WorkflowStore } from "../db/workflow-store"
 import type { WorkflowRecord } from "../models/workflow"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format/format"

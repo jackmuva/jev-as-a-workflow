@@ -1,11 +1,8 @@
 import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { join } from 'node:path';
-import { JEV_HOME } from '../../constants';
-import type { WorkflowRecord, WorkflowStep } from '../../models/workflow';
-
-const WORKFLOW_DB_PATH = join(JEV_HOME, 'sessions.db');
+import { DB_PATH, JEV_HOME } from '../constants';
+import type { WorkflowRecord, WorkflowStep } from '../models/workflow';
 
 const initWorkflowSchema = (db: Database) => {
   db.run(`
@@ -66,7 +63,7 @@ export class WorkflowStore {
     initWorkflowSchema(db);
   }
 
-  static open(path = WORKFLOW_DB_PATH): WorkflowStore {
+  static open(path = DB_PATH): WorkflowStore {
     mkdirSync(JEV_HOME, { recursive: true });
     const db = new Database(path, { create: true });
     return new WorkflowStore(db);
