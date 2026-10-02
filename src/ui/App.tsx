@@ -1,4 +1,4 @@
-import { useTerminalDimensions } from "@opentui/react"
+import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import { useCallback, useMemo, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import {
@@ -10,11 +10,16 @@ import {
 import { frontLoadMessages } from "../services/agent/hooks/front-load"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { jevMessage } from "../services/agent/utils/jev-message"
+import { buildWorkflowUserMessage } from "../services/workflow/build-message"
+import { generateWorkflowFromSession, WorkflowGenerationError } from "../services/workflow/generate"
+import { WorkflowStore } from "../services/workflow/store"
+import type { WorkflowRecord } from "../models/workflow"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
 import { buildToolCallInputMap } from "./lib/format/format"
 import { CompletionOverlayDialog } from "./components/input/CompletionOverlayDialog"
 import { CapabilitySelectionDialog } from "./components/session/CapabilitySelectionDialog"
 import { SessionSelectionDialog } from "./components/session/SessionSelectionDialog"
+import { WorkflowSelectionDialog } from "./components/workflow/WorkflowSelectionDialog"
 import { ChatInput } from "./components/input/ChatInput"
 import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
@@ -35,13 +40,23 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     setMessages,
     clearSession,
     getSessions,
+    loadSessionMessages,
     resumeSession,
     replaceSeedMessages,
     session,
+    workspacePath,
   } = useSessionPersistence(seedMessages)
+  const workflowStore = useMemo(() => WorkflowStore.open(), [])
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
   const [completion, setCompletion] = useState<CompletionState>({ open: false })
   const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
+  const [generateSessionPickerOpen, setGenerateSessionPickerOpen] = useState(false)
+  const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false)
+  const [pendingWorkflow, setPendingWorkflow] = useState<WorkflowRecord | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [workflows, setWorkflows] = useState<WorkflowRecord[]>(() =>
+    workflowStore.listWorkflows(workspacePath),
+  )
   // Ask which skills, MCPs, and user tools to enable at the start of every session.
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(
     () => !isCatalogEmpty(capabilityCatalog),
@@ -59,6 +74,10 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     [visibleMessages],
   )
 
+  const refreshWorkflows = useCallback(() => {
+    setWorkflows(workflowStore.listWorkflows(workspacePath))
+  }, [workflowStore, workspacePath])
+
   const openCapabilityPicker = useCallback(() => {
     setCapabilityPickerOpen(!isCatalogEmpty(capabilityCatalog))
   }, [capabilityCatalog])
@@ -71,8 +90,13 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       },
       resumeSession: () => setSessionPickerOpen(true),
       configureCapabilities: openCapabilityPicker,
+      generateWorkflow: () => setGenerateSessionPickerOpen(true),
+      runWorkflow: () => {
+        refreshWorkflows()
+        setWorkflowPickerOpen(true)
+      },
     }),
-    [clearSession, openCapabilityPicker],
+    [clearSession, openCapabilityPicker, refreshWorkflows],
   )
 
   const handleCapabilityConfirm = useCallback(async (selection: CapabilitySelection) => {
@@ -91,12 +115,82 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     setSessionPickerOpen(false)
   }, [])
 
+  const handleGenerateSessionSelect = useCallback(async (sessionId: string) => {
+    setGenerateSessionPickerOpen(false)
+    setGenerating(true)
+
+    try {
+      const sessionMessages = loadSessionMessages(sessionId)
+      const generated = await generateWorkflowFromSession(sessionMessages)
+      const saved = workflowStore.saveWorkflow({
+        workspacePath,
+        sourceSessionId: sessionId,
+        title: generated.title,
+        goal: generated.goal,
+        steps: generated.steps,
+      })
+      refreshWorkflows()
+      setMessages((previous) => [
+        ...previous,
+        jevMessage({
+          role: "assistant",
+          content: `Workflow saved: ${saved.title}`,
+        }),
+      ])
+    } catch (error) {
+      const message = error instanceof WorkflowGenerationError
+        ? error.message
+        : "Could not generate workflow from the selected session"
+      setMessages((previous) => [
+        ...previous,
+        jevMessage({ role: "assistant", content: message }),
+      ])
+    } finally {
+      setGenerating(false)
+    }
+  }, [loadSessionMessages, refreshWorkflows, setMessages, workflowStore, workspacePath])
+
+  const handleGenerateSessionPickerDismiss = useCallback(() => {
+    setGenerateSessionPickerOpen(false)
+  }, [])
+
+  const handleWorkflowSelect = useCallback((workflowId: string) => {
+    const workflow = workflowStore.getWorkflow(workflowId)
+    setWorkflowPickerOpen(false)
+    if (workflow) setPendingWorkflow(workflow)
+  }, [workflowStore])
+
+  const handleWorkflowPickerDismiss = useCallback(() => {
+    setWorkflowPickerOpen(false)
+  }, [])
+
   const handleCompletionChange = useCallback((next: CompletionState) => {
     setCompletion(next)
   }, [])
 
+  useKeyboard((key) => {
+    if (key.name !== "escape" || !pendingWorkflow) return
+    setPendingWorkflow(null)
+  })
+
   const handleSubmit = async (text: string) => {
-    if (!text || status === "working") return
+    if (status === "working" || generating) return
+
+    if (pendingWorkflow) {
+      const workflow = pendingWorkflow
+      setPendingWorkflow(null)
+      setStatus("working")
+
+      const userMessage = buildWorkflowUserMessage(workflow, text)
+      const nextMessages = [...messages, jevMessage(userMessage)]
+      setMessages(nextMessages)
+
+      await jevLoop(nextMessages, setMessages)
+      setStatus("ready")
+      return
+    }
+
+    if (!text) return
 
     setStatus("working")
     const userMessage = await resolveUserMessage(text)
@@ -127,6 +221,11 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     setStatus("ready")
   }
 
+  const inputDisabled = status === "working" || capabilityPickerOpen || generating
+  const chatPlaceholder = pendingWorkflow
+    ? `Add instructions for "${pendingWorkflow.title}"…`
+    : "What would you like to do"
+
   return (
     <box flexDirection="column" height={height} width="100%" padding={1} position="relative">
       <scrollbox
@@ -147,8 +246,15 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
         ))}
       </scrollbox>
       <box flexDirection="column" flexShrink={0} width="100%">
-        {status === "working" && <WorkingIndicator />}
+        {(status === "working" || generating) && (
+          <WorkingIndicator label={generating ? "Generating workflow…" : undefined} />
+        )}
         {status === "error" && <text>ERROR</text>}
+        {pendingWorkflow && (
+          <text fg="#565f89">
+            {`Running workflow: ${pendingWorkflow.title} (Esc to cancel)`}
+          </text>
+        )}
         {pendingAsk ? (
           <ClarifyQuestionBox
             input={pendingAsk.input}
@@ -156,7 +262,9 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
           />
         ) : (
           <ChatInput
-            disabled={status === "working" || capabilityPickerOpen}
+            disabled={inputDisabled}
+            placeholder={chatPlaceholder}
+            allowEmptySubmit={pendingWorkflow !== null}
             marginY={visibleMessages.length > 0 ? 1 : 0}
             slashCommandHandlers={slashCommandHandlers}
             onCompletionChange={handleCompletionChange}
@@ -179,6 +287,26 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
           currentSessionId={session.id}
           onSelect={handleSessionSelect}
           onDismiss={handleSessionPickerDismiss}
+          terminalWidth={width}
+          terminalHeight={height}
+        />
+      )}
+      {generateSessionPickerOpen && (
+        <SessionSelectionDialog
+          sessions={getSessions()}
+          title="Generate workflow from session"
+          instructions="↑/↓ to navigate · Enter to generate · Esc to dismiss"
+          onSelect={handleGenerateSessionSelect}
+          onDismiss={handleGenerateSessionPickerDismiss}
+          terminalWidth={width}
+          terminalHeight={height}
+        />
+      )}
+      {workflowPickerOpen && (
+        <WorkflowSelectionDialog
+          workflows={workflows}
+          onSelect={handleWorkflowSelect}
+          onDismiss={handleWorkflowPickerDismiss}
           terminalWidth={width}
           terminalHeight={height}
         />

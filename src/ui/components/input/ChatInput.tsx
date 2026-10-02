@@ -22,6 +22,7 @@ const APP_PADDING_X = 1
 type ChatInputProps = {
   disabled?: boolean
   placeholder?: string
+  allowEmptySubmit?: boolean
   marginY?: number
   slashCommandHandlers: SlashCommandActions
   onCompletionChange?: (completion: CompletionState) => void
@@ -31,6 +32,7 @@ type ChatInputProps = {
 export const ChatInput = ({
   disabled = false,
   placeholder = "What would you like to do",
+  allowEmptySubmit = false,
   marginY = 0,
   slashCommandHandlers,
   onCompletionChange,
@@ -80,8 +82,8 @@ export const ChatInput = ({
     if (disabled) return
     if (!handleSubmitAttempt()) return
 
-    const text = textareaRef.current?.plainText.trim()
-    if (!text) return
+    const text = textareaRef.current?.plainText.trim() ?? ""
+    if (!text && !allowEmptySubmit) return
 
     textareaRef.current?.clear()
     syncHeight()

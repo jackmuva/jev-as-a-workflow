@@ -10,9 +10,11 @@ export type UseSessionPersistenceResult = {
   setMessages: (update: SetMessagesAction) => void;
   clearSession: () => void;
   getSessions: () => SessionRecord[];
+  loadSessionMessages: (sessionId: string) => JevMessage[];
   resumeSession: (sessionId: string) => void;
   replaceSeedMessages: (seed: JevMessage[]) => void;
   session: SessionRecord;
+  workspacePath: string;
 };
 
 export const useSessionPersistence = (
@@ -48,6 +50,11 @@ export const useSessionPersistence = (
 
   const getSessions = useCallback(() => store.listSessions(workspace), [store, workspace]);
 
+  const loadSessionMessages = useCallback(
+    (sessionId: string) => store.loadMessages(sessionId),
+    [store],
+  );
+
   const resumeSession = useCallback((sessionId: string) => {
     const target = store.listSessions(workspace).find((entry) => entry.id === sessionId);
     if (!target) return;
@@ -71,8 +78,10 @@ export const useSessionPersistence = (
     setMessages,
     clearSession,
     getSessions,
+    loadSessionMessages,
     resumeSession,
     replaceSeedMessages,
     session,
+    workspacePath: workspace,
   };
 };

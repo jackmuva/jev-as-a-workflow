@@ -14,12 +14,22 @@ export const SLASH_COMMANDS: SlashCommandDefinition[] = [
     name: "configure",
     description: "Choose which MCPs, skills, tools, and AGENTS.md to enable",
   },
+  {
+    name: "generate",
+    description: "Create a workflow from a saved session",
+  },
+  {
+    name: "workflow",
+    description: "Run a saved workflow with additional instructions",
+  },
 ]
 
 export type SlashCommandActions = {
   clearSession: () => void
   resumeSession: () => void
   configureCapabilities: () => void
+  generateWorkflow: () => void
+  runWorkflow: () => void
 }
 
 export type SlashCommandHandlers = SlashCommandActions & {
@@ -78,6 +88,14 @@ export const executeSlashCommand = (
       return true
     case "configure":
       handlers.configureCapabilities()
+      handlers.clearInput()
+      return true
+    case "generate":
+      handlers.generateWorkflow()
+      handlers.clearInput()
+      return true
+    case "workflow":
+      handlers.runWorkflow()
       handlers.clearInput()
       return true
     default:

@@ -1,59 +1,43 @@
 import type { SelectOption } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
-import { useEffect, useMemo, useState } from "react"
-import type { SessionRecord } from "../../../services/session/store"
+import { useMemo, useState } from "react"
+import type { WorkflowRecord } from "../../../models/workflow"
 import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56
 const DIALOG_PADDING = 2
 const DIALOG_BORDER = 2
-const DEFAULT_INSTRUCTIONS = "↑/↓ to navigate · Enter to resume · Esc to dismiss"
+const INSTRUCTIONS = "↑/↓ to navigate · Enter to select · Esc to dismiss"
 
-type SessionSelectionDialogProps = {
-  sessions: SessionRecord[]
-  currentSessionId?: string
-  title?: string
-  instructions?: string
-  emptyMessage?: string
-  onSelect: (sessionId: string) => void
+type WorkflowSelectionDialogProps = {
+  workflows: WorkflowRecord[]
+  onSelect: (workflowId: string) => void
   onDismiss: () => void
   terminalWidth: number
   terminalHeight: number
 }
 
-const formatSessionLabel = (session: SessionRecord) =>
-  session.title?.trim() || "Untitled session"
+const formatWorkflowLabel = (workflow: WorkflowRecord) =>
+  workflow.title.trim() || "Untitled workflow"
 
-const formatSessionDescription = (session: SessionRecord, isCurrent: boolean) => {
-  const updated = new Date(session.updatedAt).toLocaleString()
-  return isCurrent ? `Current · Updated ${updated}` : `Updated ${updated}`
+const formatWorkflowDescription = (workflow: WorkflowRecord) => {
+  const updated = new Date(workflow.updatedAt).toLocaleString()
+  const stepCount = workflow.steps.length
+  return `${stepCount} step${stepCount === 1 ? "" : "s"} · Updated ${updated}`
 }
 
-export const SessionSelectionDialog = ({
-  sessions,
-  currentSessionId,
-  title = "Resume session",
-  instructions = DEFAULT_INSTRUCTIONS,
-  emptyMessage = "No saved sessions for this workspace",
+export const WorkflowSelectionDialog = ({
+  workflows,
   onSelect,
   onDismiss,
   terminalWidth,
   terminalHeight,
-}: SessionSelectionDialogProps) => {
+}: WorkflowSelectionDialogProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
 
-  useEffect(() => {
-    if (!currentSessionId) {
-      setSelectedIndex(0)
-      return
-    }
-    const currentIndex = sessions.findIndex((session) => session.id === currentSessionId)
-    setSelectedIndex(currentIndex >= 0 ? currentIndex : 0)
-  }, [currentSessionId, sessions])
-
   useKeyboard((key) => {
-    if (sessions.length === 0) {
+    if (workflows.length === 0) {
       if (key.name === "escape" || key.name === "return" || key.name === "kpenter") {
         onDismiss()
       }
@@ -61,18 +45,18 @@ export const SessionSelectionDialog = ({
     }
 
     if (key.name === "up") {
-      setSelectedIndex((index) => (index - 1 + sessions.length) % sessions.length)
+      setSelectedIndex((index) => (index - 1 + workflows.length) % workflows.length)
       return
     }
 
     if (key.name === "down") {
-      setSelectedIndex((index) => (index + 1) % sessions.length)
+      setSelectedIndex((index) => (index + 1) % workflows.length)
       return
     }
 
     if (key.name === "return" || key.name === "kpenter") {
-      const session = sessions[selectedIndex]
-      if (session) onSelect(session.id)
+      const workflow = workflows[selectedIndex]
+      if (workflow) onSelect(workflow.id)
       return
     }
 
@@ -83,18 +67,17 @@ export const SessionSelectionDialog = ({
 
   const options: SelectOption[] = useMemo(
     () =>
-      sessions.map((session) => ({
-        name: formatSessionLabel(session),
-        description: formatSessionDescription(session, currentSessionId !== undefined && session.id === currentSessionId),
-        value: session.id,
+      workflows.map((workflow) => ({
+        name: formatWorkflowLabel(workflow),
+        description: formatWorkflowDescription(workflow),
+        value: workflow.id,
       })),
-    [currentSessionId, sessions],
+    [workflows],
   )
 
   const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(24, terminalWidth - 4))
   const innerWidth = dialogWidth - DIALOG_BORDER - DIALOG_PADDING
-  // Title line plus the instructions, which wrap on narrow terminals.
-  const headerLines = 1 + Math.ceil(instructions.length / innerWidth)
+  const headerLines = 1 + Math.ceil(INSTRUCTIONS.length / innerWidth)
   const chromeLines = headerLines + DIALOG_PADDING + DIALOG_BORDER
 
   const linesPerItem = 2
@@ -104,7 +87,7 @@ export const SessionSelectionDialog = ({
     maxListHeight,
     Math.max(linesPerItem, options.length * linesPerItem),
   )
-  const bodyHeight = sessions.length === 0 ? 1 : listHeight
+  const bodyHeight = workflows.length === 0 ? 1 : listHeight
   const dialogHeight = bodyHeight + chromeLines
   const top = Math.max(1, Math.floor((terminalHeight - dialogHeight) / 2))
   const left = Math.max(1, Math.floor((terminalWidth - dialogWidth) / 2))
@@ -134,10 +117,10 @@ export const SessionSelectionDialog = ({
         flexDirection="column"
         padding={1}
       >
-        <text fg={AGENT_BORDER_COLOR} flexShrink={0}>{title}</text>
-        <text fg="#565f89" flexShrink={0}>{instructions}</text>
-        {sessions.length === 0 ? (
-          <text fg="#565f89" flexShrink={0}>{emptyMessage}</text>
+        <text fg={AGENT_BORDER_COLOR} flexShrink={0}>Run workflow</text>
+        <text fg="#565f89" flexShrink={0}>{INSTRUCTIONS}</text>
+        {workflows.length === 0 ? (
+          <text fg="#565f89" flexShrink={0}>No saved workflows for this workspace</text>
         ) : (
           <select
             options={options}

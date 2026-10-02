@@ -8,7 +8,13 @@ import {
 describe("slash commands", () => {
   test("lists slash command completions", () => {
     const items = getSlashCompletions("")
-    expect(items.map((item) => item.label)).toEqual(["/clear", "/configure", "/resume"])
+    expect(items.map((item) => item.label)).toEqual([
+      "/clear",
+      "/configure",
+      "/generate",
+      "/resume",
+      "/workflow",
+    ])
   })
 
   test("filters completions by prefix", () => {
@@ -27,13 +33,15 @@ describe("slash commands", () => {
     expect(findSlashCommand("hello")).toBeNull()
   })
 
-  test("executes clear, resume, and configure handlers", () => {
+  test("executes clear, resume, configure, generate, and workflow handlers", () => {
     const calls: string[] = []
     const handlers = {
       clearInput: () => calls.push("clearInput"),
       clearSession: () => calls.push("clearSession"),
       resumeSession: () => calls.push("resumeSession"),
       configureCapabilities: () => calls.push("configureCapabilities"),
+      generateWorkflow: () => calls.push("generateWorkflow"),
+      runWorkflow: () => calls.push("runWorkflow"),
     }
 
     expect(executeSlashCommand("clear", handlers)).toBe(true)
@@ -46,6 +54,14 @@ describe("slash commands", () => {
     calls.length = 0
     expect(executeSlashCommand("configure", handlers)).toBe(true)
     expect(calls).toEqual(["configureCapabilities", "clearInput"])
+
+    calls.length = 0
+    expect(executeSlashCommand("generate", handlers)).toBe(true)
+    expect(calls).toEqual(["generateWorkflow", "clearInput"])
+
+    calls.length = 0
+    expect(executeSlashCommand("workflow", handlers)).toBe(true)
+    expect(calls).toEqual(["runWorkflow", "clearInput"])
 
     expect(executeSlashCommand("unknown", handlers)).toBe(false)
   })

@@ -2,7 +2,11 @@ import { useEffect, useState } from "react"
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const
 
-export const WorkingIndicator = () => {
+type WorkingIndicatorProps = {
+  label?: string
+}
+
+export const WorkingIndicator = ({ label = "WORKING" }: WorkingIndicatorProps) => {
   const [frame, setFrame] = useState(0)
 
   useEffect(() => {
@@ -12,5 +16,5 @@ export const WorkingIndicator = () => {
     return () => clearInterval(id)
   }, [])
 
-  return <text>{SPINNER_FRAMES[frame]} WORKING</text>
+  return <text>{SPINNER_FRAMES[frame]} {label}</text>
 }
