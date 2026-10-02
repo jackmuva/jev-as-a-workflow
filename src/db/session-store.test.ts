@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { JevMessage } from '../models/agent';
+import { emptyCapabilitySelection } from '../services/agent/capabilities';
 import { SessionStore } from './session-store';
 
 describe('SessionStore', () => {
@@ -42,13 +43,14 @@ describe('SessionStore', () => {
     ]);
   });
 
-  test('lists sessions for a workspace ordered by most recently updated', () => {
+  test('lists sessions for a workspace ordered by most recently updated', async () => {
     const store = SessionStore.openInMemory();
     const workspace = '/tmp/project-list';
     const first = store.createSession(workspace);
     const second = store.createSession(workspace);
 
     store.saveMessages(first.id, [{ message: { role: 'user', content: 'first session' } }]);
+    await new Promise((resolve) => setTimeout(resolve, 5));
     store.saveMessages(second.id, [{ message: { role: 'user', content: 'second session' } }]);
 
     const sessions = store.listSessions(workspace);
@@ -68,6 +70,19 @@ describe('SessionStore', () => {
     );
 
     expect(store.loadMessages(session.id)).toEqual([{ message: legacy }] as JevMessage[]);
+  });
+
+  test('persists and loads session capabilities', () => {
+    const store = SessionStore.openInMemory();
+    const session = store.getOrCreateSession('/tmp/project-caps');
+    const capabilities = emptyCapabilitySelection();
+    capabilities.skills = ['demo-skill'];
+    capabilities.mcpServers = ['github'];
+
+    store.saveCapabilities(session.id, capabilities);
+
+    expect(store.getCapabilities(session.id)).toEqual(capabilities);
+    expect(store.listSessions('/tmp/project-caps')[0]?.capabilities).toEqual(capabilities);
   });
 
   test('clears saved messages when only system messages remain', () => {

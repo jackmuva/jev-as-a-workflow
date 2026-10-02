@@ -1,3 +1,5 @@
+import type { CapabilitySelection } from './agent';
+
 export type WorkflowStep = {
   intent: string;
   action: string;
@@ -11,6 +13,7 @@ export type WorkflowRecord = {
   title: string;
   goal: string;
   steps: WorkflowStep[];
+  requiredCapabilities: CapabilitySelection;
   createdAt: number;
   updatedAt: number;
 };

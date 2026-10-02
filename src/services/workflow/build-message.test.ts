@@ -8,6 +8,12 @@ const sampleWorkflow: WorkflowRecord = {
   sourceSessionId: null,
   title: 'Add persistence',
   goal: 'Add SQLite-backed workflow storage',
+  requiredCapabilities: {
+    skills: [],
+    mcpServers: [],
+    userTools: [],
+    agentsMd: [],
+  },
   createdAt: 1,
   updatedAt: 1,
   steps: [
