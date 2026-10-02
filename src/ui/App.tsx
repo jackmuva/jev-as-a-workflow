@@ -1,13 +1,12 @@
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import {
   getCapabilitySelection,
   emptyCapabilitySelection,
   isCatalogEmpty,
-  setCapabilitySelection,
+  mergeCapabilitySelection,
 } from "../services/agent/capabilities"
-import { frontLoadMessages } from "../services/agent/hooks/front-load"
 import { findPendingAskQuestion } from "../services/agent/utils/ask-question-state"
 import { jevMessage } from "../services/agent/utils/jev-message"
 import { buildWorkflowUserMessage } from "../services/workflow/build-message"
@@ -41,8 +40,9 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     clearSession,
     getSessions,
     loadSessionMessages,
+    getSessionCapabilities,
     resumeSession,
-    replaceSeedMessages,
+    applySessionCapabilities,
     session,
     workspacePath,
   } = useSessionPersistence(seedMessages)
@@ -57,10 +57,23 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>(() =>
     workflowStore.listWorkflows(workspacePath),
   )
-  // Ask which skills, MCPs, and user tools to enable at the start of every session.
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(
-    () => !isCatalogEmpty(capabilityCatalog),
+    () => !isCatalogEmpty(capabilityCatalog) && session.capabilities === null,
   )
+
+  useEffect(() => {
+    if (isCatalogEmpty(capabilityCatalog)) return
+
+    if (session.capabilities) {
+      void applySessionCapabilities(session.capabilities).then(() => {
+        setCapabilityPickerOpen(false)
+      })
+    } else {
+      setCapabilityPickerOpen(true)
+    }
+  // Re-run when the active session changes (startup, resume, /clear).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- session.capabilities is read for the current session.id
+  }, [applySessionCapabilities, capabilityCatalog, session.id])
   const { width, height } = useTerminalDimensions()
   const pendingAsk = findPendingAskQuestion(messages)
 
@@ -100,16 +113,14 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   )
 
   const handleCapabilityConfirm = useCallback(async (selection: CapabilitySelection) => {
-    setCapabilitySelection(selection)
-    replaceSeedMessages((await frontLoadMessages()).map((message) => jevMessage(message)))
+    await applySessionCapabilities(selection)
     setCapabilityPickerOpen(false)
-  }, [replaceSeedMessages])
+  }, [applySessionCapabilities])
 
   const handleSessionSelect = useCallback((sessionId: string) => {
     resumeSession(sessionId)
     setSessionPickerOpen(false)
-    openCapabilityPicker()
-  }, [openCapabilityPicker, resumeSession])
+  }, [resumeSession])
 
   const handleSessionPickerDismiss = useCallback(() => {
     setSessionPickerOpen(false)
@@ -122,12 +133,14 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     try {
       const sessionMessages = loadSessionMessages(sessionId)
       const generated = await generateWorkflowFromSession(sessionMessages)
+      const requiredCapabilities = getSessionCapabilities(sessionId) ?? emptyCapabilitySelection()
       const saved = workflowStore.saveWorkflow({
         workspacePath,
         sourceSessionId: sessionId,
         title: generated.title,
         goal: generated.goal,
         steps: generated.steps,
+        requiredCapabilities,
       })
       refreshWorkflows()
       setMessages((previous) => [
@@ -148,7 +161,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     } finally {
       setGenerating(false)
     }
-  }, [loadSessionMessages, refreshWorkflows, setMessages, workflowStore, workspacePath])
+  }, [getSessionCapabilities, loadSessionMessages, refreshWorkflows, setMessages, workflowStore, workspacePath])
 
   const handleGenerateSessionPickerDismiss = useCallback(() => {
     setGenerateSessionPickerOpen(false)
@@ -180,6 +193,12 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       const workflow = pendingWorkflow
       setPendingWorkflow(null)
       setStatus("working")
+
+      const merged = mergeCapabilitySelection(
+        getCapabilitySelection(),
+        workflow.requiredCapabilities,
+      )
+      await applySessionCapabilities(merged)
 
       const userMessage = buildWorkflowUserMessage(workflow, text)
       const nextMessages = [...messages, jevMessage(userMessage)]

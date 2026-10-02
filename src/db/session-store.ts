@@ -3,12 +3,13 @@ import type { ModelMessage } from 'ai';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DB_PATH, JEV_HOME } from '../constants';
-import type { JevMessage } from '../models/agent';
+import type { CapabilitySelection, JevMessage } from '../models/agent';
 
 export type SessionRecord = {
   id: string;
   workspacePath: string;
   title: string | null;
+  capabilities: CapabilitySelection | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -19,6 +20,7 @@ const initSchema = (db: Database) => {
       id TEXT PRIMARY KEY,
       workspace_path TEXT NOT NULL,
       title TEXT,
+      capabilities TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
@@ -40,6 +42,27 @@ const initSchema = (db: Database) => {
 };
 
 const createSessionId = () => crypto.randomUUID();
+
+const parseCapabilities = (payload: string | null): CapabilitySelection | null => {
+  if (!payload) return null;
+  return JSON.parse(payload) as CapabilitySelection;
+};
+
+const rowToRecord = (row: {
+  id: string;
+  workspace_path: string;
+  title: string | null;
+  capabilities: string | null;
+  created_at: number;
+  updated_at: number;
+}): SessionRecord => ({
+  id: row.id,
+  workspacePath: row.workspace_path,
+  title: row.title,
+  capabilities: parseCapabilities(row.capabilities),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
 
 // Sessions saved before JevMessage stored bare ModelMessages.
 const parseMessage = (payload: string): JevMessage => {
@@ -86,7 +109,7 @@ export class SessionStore {
   listSessions(workspacePath: string): SessionRecord[] {
     const normalized = resolve(workspacePath);
     const rows = this.db.query(`
-      SELECT id, workspace_path, title, created_at, updated_at
+      SELECT id, workspace_path, title, capabilities, created_at, updated_at
       FROM sessions
       WHERE workspace_path = ?
       ORDER BY updated_at DESC
@@ -94,17 +117,12 @@ export class SessionStore {
       id: string;
       workspace_path: string;
       title: string | null;
+      capabilities: string | null;
       created_at: number;
       updated_at: number;
     }>;
 
-    return rows.map((row) => ({
-      id: row.id,
-      workspacePath: row.workspace_path,
-      title: row.title,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return rows.map(rowToRecord);
   }
 
   createSession(workspacePath: string): SessionRecord {
@@ -114,13 +132,14 @@ export class SessionStore {
       id: createSessionId(),
       workspacePath: normalized,
       title: null,
+      capabilities: null,
       createdAt: now,
       updatedAt: now,
     };
 
     this.db.run(`
-      INSERT INTO sessions (id, workspace_path, title, created_at, updated_at)
-      VALUES (?, ?, NULL, ?, ?)
+      INSERT INTO sessions (id, workspace_path, title, capabilities, created_at, updated_at)
+      VALUES (?, ?, NULL, NULL, ?, ?)
     `, [session.id, session.workspacePath, session.createdAt, session.updatedAt]);
 
     return session;
@@ -129,7 +148,7 @@ export class SessionStore {
   getOrCreateSession(workspacePath: string): SessionRecord {
     const normalized = resolve(workspacePath);
     const existing = this.db.query(`
-      SELECT id, workspace_path, title, created_at, updated_at
+      SELECT id, workspace_path, title, capabilities, created_at, updated_at
       FROM sessions
       WHERE workspace_path = ?
       ORDER BY updated_at DESC
@@ -138,19 +157,12 @@ export class SessionStore {
       id: string;
       workspace_path: string;
       title: string | null;
+      capabilities: string | null;
       created_at: number;
       updated_at: number;
     } | null;
 
-    if (existing) {
-      return {
-        id: existing.id,
-        workspacePath: existing.workspace_path,
-        title: existing.title,
-        createdAt: existing.created_at,
-        updatedAt: existing.updated_at,
-      };
-    }
+    if (existing) return rowToRecord(existing);
 
     return this.createSession(workspacePath);
   }
@@ -164,6 +176,24 @@ export class SessionStore {
     `).all(sessionId) as Array<{ payload: string }>;
 
     return rows.map((row) => parseMessage(row.payload));
+  }
+
+  getCapabilities(sessionId: string): CapabilitySelection | null {
+    const row = this.db.query(`
+      SELECT capabilities
+      FROM sessions
+      WHERE id = ?
+    `).get(sessionId) as { capabilities: string | null } | null;
+
+    return row ? parseCapabilities(row.capabilities) : null;
+  }
+
+  saveCapabilities(sessionId: string, capabilities: CapabilitySelection): void {
+    this.db.run(`
+      UPDATE sessions
+      SET capabilities = ?, updated_at = ?
+      WHERE id = ?
+    `, [JSON.stringify(capabilities), Date.now(), sessionId]);
   }
 
   saveMessages(sessionId: string, messages: JevMessage[]): void {

@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DB_PATH, JEV_HOME } from '../constants';
+import type { CapabilitySelection } from '../models/agent';
 import type { WorkflowRecord, WorkflowStep } from '../models/workflow';
 
 const initWorkflowSchema = (db: Database) => {
@@ -13,6 +14,7 @@ const initWorkflowSchema = (db: Database) => {
       title TEXT NOT NULL,
       goal TEXT NOT NULL,
       steps TEXT NOT NULL,
+      required_capabilities TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (source_session_id) REFERENCES sessions(id) ON DELETE SET NULL
@@ -35,6 +37,9 @@ const parseSteps = (payload: string): WorkflowStep[] => {
   return parsed;
 };
 
+const parseCapabilities = (payload: string): CapabilitySelection =>
+  JSON.parse(payload) as CapabilitySelection;
+
 const rowToRecord = (row: {
   id: string;
   workspace_path: string;
@@ -42,6 +47,7 @@ const rowToRecord = (row: {
   title: string;
   goal: string;
   steps: string;
+  required_capabilities: string;
   created_at: number;
   updated_at: number;
 }): WorkflowRecord => ({
@@ -51,6 +57,7 @@ const rowToRecord = (row: {
   title: row.title,
   goal: row.goal,
   steps: parseSteps(row.steps),
+  requiredCapabilities: parseCapabilities(row.required_capabilities),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -77,7 +84,7 @@ export class WorkflowStore {
   listWorkflows(workspacePath: string): WorkflowRecord[] {
     const normalized = resolve(workspacePath);
     const rows = this.db.query(`
-      SELECT id, workspace_path, source_session_id, title, goal, steps, created_at, updated_at
+      SELECT id, workspace_path, source_session_id, title, goal, steps, required_capabilities, created_at, updated_at
       FROM workflows
       WHERE workspace_path = ?
       ORDER BY updated_at DESC
@@ -88,6 +95,7 @@ export class WorkflowStore {
       title: string;
       goal: string;
       steps: string;
+      required_capabilities: string;
       created_at: number;
       updated_at: number;
     }>;
@@ -97,7 +105,7 @@ export class WorkflowStore {
 
   getWorkflow(id: string): WorkflowRecord | null {
     const row = this.db.query(`
-      SELECT id, workspace_path, source_session_id, title, goal, steps, created_at, updated_at
+      SELECT id, workspace_path, source_session_id, title, goal, steps, required_capabilities, created_at, updated_at
       FROM workflows
       WHERE id = ?
     `).get(id) as {
@@ -107,6 +115,7 @@ export class WorkflowStore {
       title: string;
       goal: string;
       steps: string;
+      required_capabilities: string;
       created_at: number;
       updated_at: number;
     } | null;
@@ -120,6 +129,7 @@ export class WorkflowStore {
     title: string;
     goal: string;
     steps: WorkflowStep[];
+    requiredCapabilities: CapabilitySelection;
   }): WorkflowRecord {
     const normalized = resolve(input.workspacePath);
     const now = Date.now();
@@ -130,15 +140,16 @@ export class WorkflowStore {
       title: input.title.trim(),
       goal: input.goal.trim(),
       steps: input.steps,
+      requiredCapabilities: input.requiredCapabilities,
       createdAt: now,
       updatedAt: now,
     };
 
     this.db.run(`
       INSERT INTO workflows (
-        id, workspace_path, source_session_id, title, goal, steps, created_at, updated_at
+        id, workspace_path, source_session_id, title, goal, steps, required_capabilities, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       workflow.id,
       workflow.workspacePath,
@@ -146,6 +157,7 @@ export class WorkflowStore {
       workflow.title,
       workflow.goal,
       JSON.stringify(workflow.steps),
+      JSON.stringify(workflow.requiredCapabilities),
       workflow.createdAt,
       workflow.updatedAt,
     ]);

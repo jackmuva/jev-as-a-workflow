@@ -1,4 +1,5 @@
-import type { JevMessage } from '../../models/agent';
+import type { CapabilitySelection, JevMessage } from '../../models/agent';
+import { applyCapabilitySelection } from '../../services/agent/capabilities';
 import { resolve } from 'node:path';
 import { useCallback, useMemo, useState } from 'react';
 import { SessionStore, type SessionRecord } from '../../db/session-store';
@@ -11,8 +12,10 @@ export type UseSessionPersistenceResult = {
   clearSession: () => void;
   getSessions: () => SessionRecord[];
   loadSessionMessages: (sessionId: string) => JevMessage[];
+  getSessionCapabilities: (sessionId: string) => CapabilitySelection | null;
   resumeSession: (sessionId: string) => void;
   replaceSeedMessages: (seed: JevMessage[]) => void;
+  applySessionCapabilities: (selection: CapabilitySelection) => Promise<void>;
   session: SessionRecord;
   workspacePath: string;
 };
@@ -41,6 +44,21 @@ export const useSessionPersistence = (
     });
   }, [session.id, store]);
 
+  const replaceSeedMessages = useCallback((seed: JevMessage[]) => {
+    setSeedMessages(seed);
+    setMessagesState((previous) => [
+      ...seed,
+      ...previous.filter(({ message }) => message.role !== 'system'),
+    ]);
+  }, []);
+
+  const applySessionCapabilities = useCallback(async (selection: CapabilitySelection) => {
+    const seed = await applyCapabilitySelection(selection);
+    store.saveCapabilities(session.id, selection);
+    setSession((previous) => ({ ...previous, capabilities: selection }));
+    replaceSeedMessages(seed);
+  }, [replaceSeedMessages, session.id, store]);
+
   // Start a fresh session instead of wiping the current one, so it stays resumable.
   const clearSession = useCallback(() => {
     const hasConversation = store.loadMessages(session.id).length > 0;
@@ -55,6 +73,11 @@ export const useSessionPersistence = (
     [store],
   );
 
+  const getSessionCapabilities = useCallback(
+    (sessionId: string) => store.getCapabilities(sessionId),
+    [store],
+  );
+
   const resumeSession = useCallback((sessionId: string) => {
     const target = store.listSessions(workspace).find((entry) => entry.id === sessionId);
     if (!target) return;
@@ -64,23 +87,16 @@ export const useSessionPersistence = (
     setMessagesState([...seedMessages, ...saved]);
   }, [seedMessages, store, workspace]);
 
-  // System messages are never persisted, so they are all seed messages.
-  const replaceSeedMessages = useCallback((seed: JevMessage[]) => {
-    setSeedMessages(seed);
-    setMessagesState((previous) => [
-      ...seed,
-      ...previous.filter(({ message }) => message.role !== 'system'),
-    ]);
-  }, []);
-
   return {
     messages,
     setMessages,
     clearSession,
     getSessions,
     loadSessionMessages,
+    getSessionCapabilities,
     resumeSession,
     replaceSeedMessages,
+    applySessionCapabilities,
     session,
     workspacePath: workspace,
   };

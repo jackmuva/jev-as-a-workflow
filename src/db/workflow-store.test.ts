@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
+import { emptyCapabilitySelection } from '../services/agent/capabilities';
 import { WorkflowStore } from './workflow-store';
+
+const sampleCapabilities = () => {
+  const capabilities = emptyCapabilitySelection();
+  capabilities.mcpServers = ['github'];
+  return capabilities;
+};
 
 describe('WorkflowStore', () => {
   test('saves and lists workflows for a workspace', () => {
@@ -11,6 +18,7 @@ describe('WorkflowStore', () => {
       sourceSessionId: 'session-1',
       title: 'Add persistence',
       goal: 'Add SQLite-backed workflow storage',
+      requiredCapabilities: sampleCapabilities(),
       steps: [
         {
           intent: 'Find session store',
@@ -27,6 +35,7 @@ describe('WorkflowStore', () => {
     expect(workflows).toHaveLength(1);
     expect(workflows[0]?.title).toBe('Add persistence');
     expect(workflows[0]?.steps[0]?.toolParameters).toEqual({ pattern: 'SessionStore' });
+    expect(workflows[0]?.requiredCapabilities.mcpServers).toEqual(['github']);
   });
 
   test('gets a workflow by id', () => {
@@ -35,6 +44,7 @@ describe('WorkflowStore', () => {
       workspacePath: '/tmp/project-get',
       title: 'Test workflow',
       goal: 'Verify retrieval',
+      requiredCapabilities: emptyCapabilitySelection(),
       steps: [{ intent: 'Run tests', action: 'Execute bun test' }],
     });
 
@@ -51,6 +61,7 @@ describe('WorkflowStore', () => {
       workspacePath: workspace,
       title: 'First',
       goal: 'First goal',
+      requiredCapabilities: emptyCapabilitySelection(),
       steps: [{ intent: 'One', action: 'Do one thing' }],
     });
 
@@ -60,6 +71,7 @@ describe('WorkflowStore', () => {
       workspacePath: workspace,
       title: 'Second',
       goal: 'Second goal',
+      requiredCapabilities: emptyCapabilitySelection(),
       steps: [{ intent: 'Two', action: 'Do two things' }],
     });
 
