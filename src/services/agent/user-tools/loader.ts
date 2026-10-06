@@ -1,10 +1,10 @@
-import { mkdir, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { McpTool, McpToolResult } from '../../../models/mcp';
-import { JEV_HOME, USER_TOOL_SERVER } from '../../../constants';
+import { USER_TOOL_SERVER, USER_TOOLS_DIR } from '../../../constants';
 import type { UserToolDefinition } from '../../../models/agent';
 
-export const USER_TOOLS_DIR = join(JEV_HOME, 'tools');
+export { USER_TOOLS_DIR };
 
 let loaded = false;
 let entries: UserToolDefinition[] = [];
@@ -48,8 +48,6 @@ export const loadUserTools = async (dir = USER_TOOLS_DIR) => {
   loaded = true;
   entries = [];
   loadErrors = [];
-
-  await mkdir(dir, { recursive: true });
 
   let files: string[];
   try {

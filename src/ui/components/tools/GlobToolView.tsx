@@ -1,16 +1,16 @@
 import type { ToolViewProps } from "../../../models/ui"
 import { callTitle, readStringField } from "../../lib/format/utils"
 import { ListToolView } from "../primitives/ListToolView"
-import { ToolFrame } from "../primitives/ToolFrame"
+import { MessageFrame } from "../primitives/MessageFrame"
 
 export const GlobToolCallView = (props: ToolViewProps) => {
   const pattern = readStringField(props.input, "pattern") ?? ""
   const path = readStringField(props.input, "path") ?? "."
 
   return (
-    <ToolFrame title={callTitle(props.toolName)} subtitle={`${path} · ${pattern}`}>
+    <MessageFrame title={callTitle(props.toolName)} subtitle={`${path} · ${pattern}`}>
       <text>Searching files...</text>
-    </ToolFrame>
+    </MessageFrame>
   )
 }
 

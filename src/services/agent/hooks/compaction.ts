@@ -134,10 +134,11 @@ export const compactMessages = async (
     prompt: transcript,
   });
 
-  const summaryMessage = jevMessage({
-    role: 'assistant',
-    content: `[Conversation summary]\n${summary}`,
-  });
+  const summaryMessage = jevMessage(
+    { role: 'assistant', content: summary },
+    undefined,
+    'summary',
+  );
 
   const kept = messages.filter((_, index) => retained.has(index));
   const systemMessages = kept.filter(({ message }) => message.role === 'system');

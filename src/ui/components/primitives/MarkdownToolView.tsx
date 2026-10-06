@@ -1,6 +1,6 @@
 import { syntaxStyle } from "../../syntax-style"
 import type { ToolViewProps } from "../../../models/ui"
-import { ToolFrame } from "./ToolFrame"
+import { MessageFrame } from "./MessageFrame"
 
 type MarkdownToolViewProps = ToolViewProps & {
   content: string
@@ -13,11 +13,11 @@ export const MarkdownToolView = ({
   subtitle,
   isError,
 }: MarkdownToolViewProps) => (
-  <ToolFrame title={toolName} subtitle={subtitle}>
+  <MessageFrame title={toolName} subtitle={subtitle}>
     {isError ? (
       <text fg="#f7768e">{content}</text>
     ) : (
       <markdown content={content} syntaxStyle={syntaxStyle} />
     )}
-  </ToolFrame>
+  </MessageFrame>
 )

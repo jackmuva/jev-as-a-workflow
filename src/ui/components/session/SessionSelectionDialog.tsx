@@ -2,7 +2,7 @@ import type { SelectOption } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import { useEffect, useMemo, useState } from "react"
 import type { SessionRecord } from "../../../db/session-store"
-import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
+import { AGENT_BORDER_COLOR } from "../primitives/MessageFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56

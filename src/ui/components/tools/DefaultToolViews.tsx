@@ -3,7 +3,7 @@ import { callTitle, looksLikeMarkdown } from "../../lib/format/utils"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { DefaultToolView } from "../primitives/DefaultToolView"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
-import { ToolFrame } from "../primitives/ToolFrame"
+import { MessageFrame } from "../primitives/MessageFrame"
 
 export const DefaultToolCallView = (props: ToolViewProps) => {
   const summary = props.input != null
@@ -22,9 +22,9 @@ export const DefaultToolCallView = (props: ToolViewProps) => {
   }
 
   return (
-    <ToolFrame title={callTitle(props.toolName)} subtitle={summary || undefined}>
+    <MessageFrame title={callTitle(props.toolName)} subtitle={summary || undefined}>
       <text>Running tool...</text>
-    </ToolFrame>
+    </MessageFrame>
   )
 }
 

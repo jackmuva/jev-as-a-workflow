@@ -2,10 +2,13 @@ import type { ModelMessage } from "ai";
 
 export type ChoiceProbabilities = { [choice: string]: number };
 
+export type JevMessageFrame = 'summary';
+
 /** A ModelMessage plus UI-only metadata. Only `message` is ever sent to an LLM. */
 export type JevMessage = {
   message: ModelMessage,
   probabilities?: ChoiceProbabilities,
+  frame?: JevMessageFrame,
 }
 
 export type STATE = "START" | "DISCOVERY" | "PLAN" | "EXECUTE" | "REWIND" | "END";

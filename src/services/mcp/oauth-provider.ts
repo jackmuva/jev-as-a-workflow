@@ -8,9 +8,7 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthOptions } from '../../models/mcp';
-import { JEV_HOME } from '../../constants';
-
-const AUTH_DIR = join(JEV_HOME, 'mcp-auth');
+import { MCP_AUTH_DIR } from '../../constants';
 const DEFAULT_CALLBACK_PORT = 33418;
 const CALLBACK_PATH = '/oauth/callback';
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
@@ -122,7 +120,7 @@ export class FileOAuthProvider implements OAuthClientProvider {
     private readonly options: OAuthOptions = {},
     private readonly onAuthorize: (server: string, url: URL) => void = () => {},
   ) {
-    this.file = join(AUTH_DIR, `${serverName.replace(/[^\w.-]/g, '_')}.json`);
+    this.file = join(MCP_AUTH_DIR, `${serverName.replace(/[^\w.-]/g, '_')}.json`);
     this.port = options.callbackPort ?? DEFAULT_CALLBACK_PORT;
   }
 
@@ -221,7 +219,7 @@ export class FileOAuthProvider implements OAuthClientProvider {
 
   private async write(update: Partial<StoredAuth>) {
     const next = { ...(await this.read()), ...update, serverUrl: this.serverUrl };
-    await mkdir(AUTH_DIR, { recursive: true, mode: 0o700 });
+    await mkdir(MCP_AUTH_DIR, { recursive: true, mode: 0o700 });
     await Bun.write(this.file, JSON.stringify(next, null, 2));
     await chmod(this.file, 0o600);
   }

@@ -1,6 +1,6 @@
 import { syntaxStyle } from "../../syntax-style"
 import type { ToolViewProps } from "../../../models/ui"
-import { ToolFrame } from "./ToolFrame"
+import { MessageFrame } from "./MessageFrame"
 
 type CodeToolViewProps = ToolViewProps & {
   content: string
@@ -17,7 +17,7 @@ export const CodeToolView = ({
   startLine = 1,
   isError,
 }: CodeToolViewProps) => (
-  <ToolFrame title={toolName} subtitle={subtitle}>
+  <MessageFrame title={toolName} subtitle={subtitle}>
     {isError ? (
       <text fg="#f7768e">{content}</text>
     ) : (
@@ -37,5 +37,5 @@ export const CodeToolView = ({
         />
       </line-number>
     )}
-  </ToolFrame>
+  </MessageFrame>
 )

@@ -1,16 +1,32 @@
 import { mkdirSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JEV_HOME } from '../../constants';
+import {
+  AI_GATEWAY_API_KEY_PLACEHOLDER,
+  APP_CONFIG_PATH,
+  DEFAULT_LLM_MODEL,
+  JEV_HOME,
+} from '../../constants';
 import type { AppConfig } from '../../models/config';
+import type { McpConfig } from '../../models/mcp';
 
-export const APP_CONFIG_PATH = join(JEV_HOME, 'config.json');
+export { APP_CONFIG_PATH };
+
+const writeDefaultJsonIfMissing = async (path: string, content: unknown): Promise<void> => {
+  const file = Bun.file(path);
+  if (await file.exists()) return;
+  await Bun.write(path, `${JSON.stringify(content, null, 2)}\n`);
+};
 
 export async function loadAppConfig(path = APP_CONFIG_PATH): Promise<AppConfig> {
   const file = Bun.file(path);
   if (!(await file.exists())) return {};
 
   const config = await file.json() as AppConfig;
-  if (config.aiGatewayApiKey) {
+  if (
+    config.aiGatewayApiKey
+    && config.aiGatewayApiKey !== AI_GATEWAY_API_KEY_PLACEHOLDER
+  ) {
     process.env.AI_GATEWAY_API_KEY = config.aiGatewayApiKey;
   }
   if (config.llmModel) {
@@ -19,6 +35,17 @@ export async function loadAppConfig(path = APP_CONFIG_PATH): Promise<AppConfig> 
   return config;
 }
 
-export async function ensureJevHome(): Promise<void> {
-  mkdirSync(JEV_HOME, { recursive: true });
+export async function ensureJevHome(home = JEV_HOME): Promise<void> {
+  mkdirSync(home, { recursive: true });
+  await mkdir(join(home, 'mcp-auth'), { recursive: true, mode: 0o700 });
+  await mkdir(join(home, 'tools'), { recursive: true });
+
+  const defaultConfig: AppConfig = {
+    aiGatewayApiKey: AI_GATEWAY_API_KEY_PLACEHOLDER,
+    llmModel: DEFAULT_LLM_MODEL,
+  };
+  const defaultMcpConfig: McpConfig = { mcpServers: {} };
+
+  await writeDefaultJsonIfMissing(join(home, 'config.json'), defaultConfig);
+  await writeDefaultJsonIfMissing(join(home, 'mcp.json'), defaultMcpConfig);
 }

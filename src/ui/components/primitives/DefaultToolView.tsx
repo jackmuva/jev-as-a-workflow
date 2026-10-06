@@ -1,8 +1,8 @@
-import { ToolFrame } from "./ToolFrame"
+import { MessageFrame } from "./MessageFrame"
 import type { ToolViewProps } from "../../../models/ui"
 
 export const DefaultToolView = ({ toolName, text, isError }: ToolViewProps) => (
-  <ToolFrame title={toolName}>
+  <MessageFrame title={toolName}>
     <text fg={isError ? "#f7768e" : undefined}>{text}</text>
-  </ToolFrame>
+  </MessageFrame>
 )

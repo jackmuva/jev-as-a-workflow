@@ -5,7 +5,7 @@ import type {
   CapabilityKind,
   CapabilitySelection,
 } from "../../../models/agent"
-import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
+import { AGENT_BORDER_COLOR } from "../primitives/MessageFrame"
 
 const DIALOG_WIDTH = 64
 const DIALOG_PADDING = 2

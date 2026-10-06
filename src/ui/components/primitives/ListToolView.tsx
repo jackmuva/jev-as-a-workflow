@@ -1,5 +1,5 @@
 import type { ToolViewProps } from "../../../models/ui"
-import { ToolFrame } from "./ToolFrame"
+import { MessageFrame } from "./MessageFrame"
 
 type ListToolViewProps = ToolViewProps & {
   items: string[]
@@ -13,7 +13,7 @@ export const ListToolView = ({
   text,
   isError,
 }: ListToolViewProps) => (
-  <ToolFrame title={toolName} subtitle={subtitle}>
+  <MessageFrame title={toolName} subtitle={subtitle}>
     {isError ? (
       <text fg="#f7768e">{text}</text>
     ) : (
@@ -23,5 +23,5 @@ export const ListToolView = ({
         ))}
       </>
     )}
-  </ToolFrame>
+  </MessageFrame>
 )

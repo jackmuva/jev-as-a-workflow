@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { extractFileReferences, resolveUserMessage } from "./at-files"
+import { extractFileReferences, parseUserAttachments, resolveUserMessage } from "./at-files"
 
 describe("extractFileReferences", () => {
   test("finds file references in text", () => {
@@ -22,5 +22,25 @@ describe("resolveUserMessage", () => {
     expect(message.content).toContain("explain @README.md")
     expect(message.content).toContain("[Attached: README.md]")
     expect(message.content).toContain("JaaW")
+  })
+})
+
+describe("parseUserAttachments", () => {
+  test("returns plain text when no attachments are present", () => {
+    expect(parseUserAttachments("hello")).toEqual({
+      prompt: "hello",
+      attachments: [],
+    })
+  })
+
+  test("splits prompt text from attached file blocks", () => {
+    const content = "explain @README.md\n\n[Attached: README.md]\n# JaaW\n\n[Attached: package.json]\n{}"
+    expect(parseUserAttachments(content)).toEqual({
+      prompt: "explain @README.md",
+      attachments: [
+        { path: "README.md", content: "# JaaW" },
+        { path: "package.json", content: "{}" },
+      ],
+    })
   })
 })

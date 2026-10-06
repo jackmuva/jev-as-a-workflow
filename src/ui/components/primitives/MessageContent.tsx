@@ -1,5 +1,7 @@
 import type { ModelMessage } from "ai"
 import type { JevMessage } from "../../../models/agent"
+import { parseUserAttachments } from "../../lib/input-completion/at-files"
+import { parseWorkflowPrompt } from "../../../services/workflow/build-message"
 import { renderToolCall, renderToolResult } from "../../tool-renderers"
 import {
   formatToolResultText,
@@ -8,7 +10,7 @@ import {
   type ToolResultPart,
 } from "../../lib/format/format"
 import { ChoiceProbabilities } from "./ChoiceProbabilities"
-import { AGENT_BORDER_COLOR, ToolFrameKindContext } from "./ToolFrame"
+import { AGENT_BORDER_COLOR, MessageFrame, MessageFrameKindContext } from "./MessageFrame"
 
 const formatMessageContent = (message: ModelMessage): string => {
   if (typeof message.content === "string") return message.content
@@ -59,12 +61,25 @@ type MessageContentProps = {
   toolCallInputs: Map<string, { toolName: string; input: unknown }>
 }
 
-export const MessageContent = ({ message: { message, probabilities }, toolCallInputs }: MessageContentProps) => {
+export const MessageContent = ({ message: { message, probabilities, frame }, toolCallInputs }: MessageContentProps) => {
   const isAgent = message.role === "assistant" || message.role === "tool"
+
+  if (frame === "summary") {
+    const text = formatMessageContent(message)
+    if (!text) return null
+
+    return (
+      <MessageFrameKindContext.Provider value="summary">
+        <MessageFrame title="Conversation summary">
+          <text>{text}</text>
+        </MessageFrame>
+      </MessageFrameKindContext.Provider>
+    )
+  }
 
   if (message.role === "tool" && Array.isArray(message.content)) {
     return (
-      <ToolFrameKindContext.Provider value="output">
+      <MessageFrameKindContext.Provider value="output">
         {message.content.map((part, index) => {
           if (part.type !== "tool-result") return null
           const toolResult = part as ToolResultPart
@@ -83,13 +98,13 @@ export const MessageContent = ({ message: { message, probabilities }, toolCallIn
             </box>
           )
         })}
-      </ToolFrameKindContext.Provider>
+      </MessageFrameKindContext.Provider>
     )
   }
 
   if (hasOnlyToolCalls(message) && Array.isArray(message.content)) {
     return (
-      <ToolFrameKindContext.Provider value="call">
+      <MessageFrameKindContext.Provider value="call">
         {message.content.map((part, index) => {
           if (part.type !== "tool-call") return null
           const toolCall = part as ToolCallPart
@@ -120,12 +135,43 @@ export const MessageContent = ({ message: { message, probabilities }, toolCallIn
             </box>
           )
         })}
-      </ToolFrameKindContext.Provider>
+      </MessageFrameKindContext.Provider>
     )
   }
 
   const text = formatMessageContent(message)
   if (!text) return null
+
+  if (message.role === "user") {
+    const workflow = parseWorkflowPrompt(text)
+    if (workflow) {
+      return (
+        <box width="100%" marginBottom={1}>
+          <MessageFrameKindContext.Provider value="workflow">
+            <MessageFrame title={workflow.title}>
+              <text>{workflow.content}</text>
+            </MessageFrame>
+          </MessageFrameKindContext.Provider>
+        </box>
+      )
+    }
+
+    const { prompt, attachments } = parseUserAttachments(text)
+    if (attachments.length > 0) {
+      return (
+        <box flexDirection="column" width="100%" marginBottom={1}>
+          {prompt ? <text>{prompt}</text> : null}
+          {attachments.map((attachment, index) => (
+            <MessageFrameKindContext.Provider key={`${attachment.path}-${index}`} value="attachment">
+              <MessageFrame title={attachment.path}>
+                <text>{attachment.content}</text>
+              </MessageFrame>
+            </MessageFrameKindContext.Provider>
+          ))}
+        </box>
+      )
+    }
+  }
 
   return (
     <box

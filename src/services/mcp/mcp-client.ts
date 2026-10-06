@@ -13,8 +13,7 @@ import type {
   McpTool,
   McpToolResult,
 } from '../../models/mcp';
-import { join } from 'node:path';
-import { JEV_HOME } from '../../constants';
+import { MCP_CONFIG_PATH } from '../../constants';
 
 const CLIENT_INFO = { name: 'jaaw', version: '0.1.0' };
 
@@ -59,7 +58,7 @@ export class McpClientManager {
 
   constructor(private readonly options: McpClientManagerOptions = {}) { }
 
-  async loadConfig(path = join(JEV_HOME, 'mcp.json')) {
+  async loadConfig(path = MCP_CONFIG_PATH) {
     const file = Bun.file(path);
     this.config = (await file.exists())
       ? await file.json() as McpConfig

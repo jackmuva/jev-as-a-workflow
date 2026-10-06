@@ -5,21 +5,26 @@ import { WorkflowEdge } from "./WorkflowEdge"
 
 export const AGENT_BORDER_COLOR = "#565f89"
 export const USER_INPUT_BORDER_COLOR = "#e0af68"
-export const TOOL_RESULT_MAX_HEIGHT = 14
+export const SUMMARY_BORDER_COLOR = "#bb9af7"
+export const WORKFLOW_BORDER_COLOR = "#7dcfff"
+export const MESSAGE_FRAME_MAX_HEIGHT = 14
 const MUTED_FG = "#565f89"
 const CALL_LABEL_FG = "#7aa2f7"
 const OUTPUT_LABEL_FG = "#9ece6a"
 
-const NODE_LABEL: Record<ToolFrameKind, string> = {
+const NODE_LABEL: Record<MessageFrameKind, string> = {
   call: "● CALL",
   output: "■ OUTPUT",
+  summary: "◆ SUMMARY",
+  attachment: "◇ ATTACH",
+  workflow: "▶ WORKFLOW",
 }
 
-export type ToolFrameKind = "call" | "output"
+export type MessageFrameKind = "call" | "output" | "summary" | "attachment" | "workflow"
 
-export const ToolFrameKindContext = createContext<ToolFrameKind | undefined>(undefined)
+export const MessageFrameKindContext = createContext<MessageFrameKind | undefined>(undefined)
 
-type ToolFrameProps = {
+type MessageFrameProps = {
   title: string
   subtitle?: string
   children: ReactNode
@@ -27,15 +32,15 @@ type ToolFrameProps = {
   width?: `${number}%` | number | "auto"
 }
 
-export const ToolFrame = ({
+export const MessageFrame = ({
   title,
   subtitle,
   children,
-  maxHeight = TOOL_RESULT_MAX_HEIGHT,
+  maxHeight = MESSAGE_FRAME_MAX_HEIGHT,
   width = "75%" as const,
-}: ToolFrameProps) => {
+}: MessageFrameProps) => {
   const [expanded, setExpanded] = useState(false)
-  const kind = useContext(ToolFrameKindContext)
+  const kind = useContext(MessageFrameKindContext)
 
   const handleToggle = (event: MouseEvent) => {
     if (event.button !== MouseButton.LEFT) return
@@ -43,7 +48,17 @@ export const ToolFrame = ({
     setExpanded((value) => !value)
   }
 
-  const accent = kind === "call" ? CALL_LABEL_FG : kind === "output" ? OUTPUT_LABEL_FG : AGENT_BORDER_COLOR
+  const accent = kind === "call"
+    ? CALL_LABEL_FG
+    : kind === "output"
+      ? OUTPUT_LABEL_FG
+      : kind === "summary"
+        ? SUMMARY_BORDER_COLOR
+        : kind === "attachment"
+          ? USER_INPUT_BORDER_COLOR
+          : kind === "workflow"
+            ? WORKFLOW_BORDER_COLOR
+            : AGENT_BORDER_COLOR
   const label = kind ? `${NODE_LABEL[kind]} · ` : ""
 
   return (

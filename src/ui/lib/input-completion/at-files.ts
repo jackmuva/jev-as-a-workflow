@@ -12,9 +12,32 @@ const EXCLUDED_DIRS = new Set(["node_modules", ".git", "dist", ".cache"])
 let cachedFiles: string[] | null = null
 let cachedRoot: string | null = null
 
-type FileAttachment = {
+export type FileAttachment = {
   path: string
   content: string
+}
+
+export const formatAttachmentBlock = (attachment: FileAttachment): string =>
+  `[Attached: ${attachment.path}]\n${attachment.content}`
+
+export const parseUserAttachments = (text: string): { prompt: string; attachments: FileAttachment[] } => {
+  const attachmentStart = text.indexOf("\n\n[Attached:")
+  if (attachmentStart === -1) {
+    return { prompt: text, attachments: [] }
+  }
+
+  const prompt = text.slice(0, attachmentStart)
+  const attachmentSection = text.slice(attachmentStart + 2)
+  const attachments: FileAttachment[] = []
+
+  for (const block of attachmentSection.split(/\n\n(?=\[Attached:)/)) {
+    const match = block.match(/^\[Attached: ([^\]]+)\]\n([\s\S]*)$/)
+    if (match) {
+      attachments.push({ path: match[1]!, content: match[2]! })
+    }
+  }
+
+  return { prompt, attachments }
 }
 
 const readAttachment = async (path: string, root = process.cwd()): Promise<FileAttachment | null> => {
@@ -56,9 +79,7 @@ export const resolveUserMessage = async (text: string): Promise<ModelMessage> =>
     return { role: "user", content: text }
   }
 
-  const attachmentText = attachments
-    .map((attachment) => `[Attached: ${attachment.path}]\n${attachment.content}`)
-    .join("\n\n")
+  const attachmentText = attachments.map(formatAttachmentBlock).join("\n\n")
 
   return {
     role: "user",

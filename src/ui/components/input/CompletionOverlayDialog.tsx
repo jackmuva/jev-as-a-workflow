@@ -1,6 +1,6 @@
 import type { SelectOption } from "@opentui/core"
 import type { CompletionItem, CompletionKind } from "../../../models/ui"
-import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
+import { AGENT_BORDER_COLOR } from "../primitives/MessageFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56

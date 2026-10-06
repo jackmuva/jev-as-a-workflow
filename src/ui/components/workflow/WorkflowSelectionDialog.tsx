@@ -2,7 +2,7 @@ import type { SelectOption } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import { useMemo, useState } from "react"
 import type { WorkflowRecord } from "../../../models/workflow"
-import { AGENT_BORDER_COLOR } from "../primitives/ToolFrame"
+import { AGENT_BORDER_COLOR } from "../primitives/MessageFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56

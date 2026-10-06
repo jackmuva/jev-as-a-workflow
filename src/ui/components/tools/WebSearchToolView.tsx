@@ -1,15 +1,15 @@
 import type { ToolViewProps } from "../../../models/ui"
 import { callTitle, readStringField } from "../../lib/format/utils"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
-import { ToolFrame } from "../primitives/ToolFrame"
+import { MessageFrame } from "../primitives/MessageFrame"
 
 export const WebSearchToolCallView = (props: ToolViewProps) => {
   const query = readStringField(props.input, "query") ?? ""
 
   return (
-    <ToolFrame title={callTitle(props.toolName)} subtitle={query}>
+    <MessageFrame title={callTitle(props.toolName)} subtitle={query}>
       <text>Searching the web...</text>
-    </ToolFrame>
+    </MessageFrame>
   )
 }
 

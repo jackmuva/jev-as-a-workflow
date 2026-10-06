@@ -1,6 +1,6 @@
 import type { ToolViewProps } from "../../../models/ui"
 import { asRecord } from "../../lib/format/utils"
-import { USER_INPUT_BORDER_COLOR } from "../primitives/ToolFrame"
+import { USER_INPUT_BORDER_COLOR } from "../primitives/MessageFrame"
 import { WorkflowEdge } from "../primitives/WorkflowEdge"
 
 const MUTED_FG = "#565f89"

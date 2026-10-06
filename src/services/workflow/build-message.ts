@@ -1,6 +1,25 @@
 import type { ModelMessage } from 'ai';
 import type { WorkflowRecord } from '../../models/workflow';
 
+export const WORKFLOW_PROMPT_LEAD = 'Execute this workflow step by step.';
+
+export const formatWorkflowHeader = (title: string): string => `[Workflow: ${title}]`;
+
+export const parseWorkflowPrompt = (
+  text: string,
+): { title: string; content: string } | null => {
+  const headerMatch = text.match(/^\[Workflow: ([^\]]+)\]\n\n([\s\S]*)$/);
+  if (headerMatch) {
+    return { title: headerMatch[1]!, content: headerMatch[2]! };
+  }
+
+  if (text.startsWith(WORKFLOW_PROMPT_LEAD)) {
+    return { title: 'Workflow', content: text };
+  }
+
+  return null;
+};
+
 const formatStep = (step: WorkflowRecord['steps'][number], index: number): string => {
   const lines = [
     `${index + 1}. **Intent:** ${step.intent}`,
@@ -26,7 +45,9 @@ export const buildWorkflowUserMessage = (
   return {
     role: 'user',
     content: [
-      'Execute this workflow step by step.',
+      formatWorkflowHeader(workflow.title),
+      '',
+      WORKFLOW_PROMPT_LEAD,
       'Adapt {{placeholder}} values using the additional instructions below.',
       '',
       '## Goal',

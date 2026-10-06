@@ -2,16 +2,16 @@ import type { ToolViewProps } from "../../../models/ui"
 import { callTitle, looksLikeMarkdown, readStringField } from "../../lib/format/utils"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
-import { ToolFrame } from "../primitives/ToolFrame"
+import { MessageFrame } from "../primitives/MessageFrame"
 
 export const WebFetchToolCallView = (props: ToolViewProps) => {
   const url = readStringField(props.input, "url") ?? ""
   const format = readStringField(props.input, "format") ?? "markdown"
 
   return (
-    <ToolFrame title={callTitle(props.toolName)} subtitle={`${url} (${format})`}>
+    <MessageFrame title={callTitle(props.toolName)} subtitle={`${url} (${format})`}>
       <text>Fetching URL...</text>
-    </ToolFrame>
+    </MessageFrame>
   )
 }
 

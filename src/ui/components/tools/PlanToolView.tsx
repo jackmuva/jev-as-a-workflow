@@ -7,7 +7,7 @@ import {
 } from "../../lib/format/utils"
 import { ListToolView } from "../primitives/ListToolView"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
-import { ToolFrame } from "../primitives/ToolFrame"
+import { MessageFrame } from "../primitives/MessageFrame"
 
 const renderPlanView = (props: ToolViewProps, planText: string, title = "Plan") => {
   const steps = parsePlanSteps(planText)
@@ -43,9 +43,9 @@ export const PlanToolCallView = (props: ToolViewProps) => {
   }
 
   return (
-    <ToolFrame title={callTitle(props.toolName)}>
+    <MessageFrame title={callTitle(props.toolName)}>
       <text>Creating plan...</text>
-    </ToolFrame>
+    </MessageFrame>
   )
 }
 

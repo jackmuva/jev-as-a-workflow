@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { WorkflowRecord } from '../../models/workflow';
-import { buildWorkflowUserMessage } from './build-message';
+import { buildWorkflowUserMessage, parseWorkflowPrompt } from './build-message';
 
 const sampleWorkflow: WorkflowRecord = {
   id: 'wf-1',
@@ -37,6 +37,7 @@ describe('buildWorkflowUserMessage', () => {
     expect(typeof message.content).toBe('string');
     const content = message.content as string;
 
+    expect(content).toContain('[Workflow: Add persistence]');
     expect(content).toContain('Add SQLite-backed workflow storage');
     expect(content).toContain('Search for SessionStore usage');
     expect(content).toContain('"pattern":"SessionStore"');
@@ -49,5 +50,25 @@ describe('buildWorkflowUserMessage', () => {
     const content = message.content as string;
 
     expect(content).not.toContain('## Additional instructions');
+  });
+});
+
+describe('parseWorkflowPrompt', () => {
+  test('parses titled workflow prompts', () => {
+    const message = buildWorkflowUserMessage(sampleWorkflow, 'Use the main branch');
+    const parsed = parseWorkflowPrompt(message.content as string);
+
+    expect(parsed).toEqual({
+      title: 'Add persistence',
+      content: (message.content as string).replace('[Workflow: Add persistence]\n\n', ''),
+    });
+  });
+
+  test('recognizes legacy workflow prompts without a header', () => {
+    const content = 'Execute this workflow step by step.\n\n## Goal\n\nShip it';
+    expect(parseWorkflowPrompt(content)).toEqual({
+      title: 'Workflow',
+      content,
+    });
   });
 });
