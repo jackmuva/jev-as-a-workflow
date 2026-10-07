@@ -24,8 +24,7 @@ import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
 import { ContextCostStatusBar } from "./components/primitives/ContextCostStatusBar"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
-import { useSessionUsage } from "./hooks/useSessionUsage"
-import { resetSessionUsage } from "../services/llm/session-usage"
+import { useProviderMetadata } from "./hooks/useProviderMetadata"
 import type { CompletionState } from "../models/ui"
 import { resolveUserMessage } from "./lib/input-completion/at-files"
 import type { CapabilityCatalog, CapabilitySelection, JevMessage } from "../models/agent"
@@ -78,12 +77,8 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   // eslint-disable-next-line react-hooks/exhaustive-deps -- session.capabilities is read for the current session.id
   }, [applySessionCapabilities, capabilityCatalog, session.id])
   const { width, height } = useTerminalDimensions()
-  const { contextPercent, sessionCostUsd, sessionTokensUsed } = useSessionUsage()
+  const { contextPercent, sessionCostUsd, sessionTokensUsed } = useProviderMetadata(session.id)
   const pendingAsk = findPendingAskQuestion(messages)
-
-  useEffect(() => {
-    resetSessionUsage()
-  }, [session.id])
 
   const visibleMessages = useMemo(
     () => messages.filter(({ message }) => message.role !== "system"),

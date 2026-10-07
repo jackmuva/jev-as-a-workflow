@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react';
 import { COMPACTION_CONTEXT_WINDOW } from '../../constants';
 import {
   getSessionUsageState,
+  resetSessionUsage,
   subscribeSessionUsage,
 } from '../../services/llm/session-usage';
 
-export const useSessionUsage = () => {
+export const useProviderMetadata = (sessionId: string) => {
   const [state, setState] = useState(getSessionUsageState);
+
+  useEffect(() => {
+    resetSessionUsage();
+  }, [sessionId]);
 
   useEffect(() => subscribeSessionUsage(() => {
     setState(getSessionUsageState());
