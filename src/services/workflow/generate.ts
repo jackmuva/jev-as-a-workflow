@@ -1,5 +1,5 @@
 import { generateText, jsonSchema, NoObjectGeneratedError, Output } from 'ai';
-import { recordLlmUsage } from '../llm/session-cost';
+import { recordLlmUsage } from '../llm/session-usage';
 import { LLM_MODEL } from '../../constants';
 import type { JevMessage } from '../../models/agent';
 import type { GeneratedWorkflow, WorkflowStep } from '../../models/workflow';

@@ -1,6 +1,5 @@
 import { COMPACTION_TOKEN_THRESHOLD } from '../../../constants';
-import { formatSessionCostUsd } from '../../lib/format/session-cost';
-import { formatSessionTokens } from '../../lib/format/session-tokens';
+import { formatSessionCostUsd, formatSessionTokens } from '../../lib/format/format';
 
 const MUTED_FG = '#565f89';
 const WARM_FG = '#e0af68';
