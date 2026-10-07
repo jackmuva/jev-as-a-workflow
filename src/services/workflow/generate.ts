@@ -1,8 +1,47 @@
-import { generateText } from 'ai';
+import { generateText, jsonSchema, NoObjectGeneratedError, Output } from 'ai';
 import { LLM_MODEL } from '../../constants';
 import type { JevMessage } from '../../models/agent';
 import type { GeneratedWorkflow, WorkflowStep } from '../../models/workflow';
 import { extractToolCalls, hasConversationContent } from './extract-tool-calls';
+
+const workflowSchema = jsonSchema<GeneratedWorkflow>({
+  type: 'object',
+  properties: {
+    title: {
+      type: 'string',
+      description: 'Short workflow name (max 80 chars)',
+    },
+    goal: {
+      type: 'string',
+      description: 'One sentence describing the outcome',
+    },
+    steps: {
+      type: 'array',
+      minItems: 1,
+      description: 'Ordered steps forming the successful workflow path',
+      items: {
+        type: 'object',
+        properties: {
+          intent: {
+            type: 'string',
+            description: 'Why the step exists',
+          },
+          action: {
+            type: 'string',
+            description: 'Imperative description of what to do (mention tools when relevant)',
+          },
+          toolParameters: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+            description: "Optional tool arguments; use {{placeholder}} for values from the user's instructions later",
+          },
+        },
+        required: ['intent', 'action'],
+      },
+    },
+  },
+  required: ['title', 'goal', 'steps'],
+});
 
 const stringifyToolCalls = (calls: ReturnType<typeof extractToolCalls>): string =>
   calls.length === 0
@@ -38,17 +77,8 @@ const messageToSummaryLine = ({ message }: JevMessage): string | null => {
   return null;
 };
 
-const parseGeneratedWorkflow = (text: string): GeneratedWorkflow => {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const payload = fenced?.[1]?.trim() ?? trimmed;
-  const parsed = JSON.parse(payload) as GeneratedWorkflow;
-
-  if (!parsed.title?.trim() || !parsed.goal?.trim() || !Array.isArray(parsed.steps) || parsed.steps.length === 0) {
-    throw new Error('Generated workflow is missing required fields');
-  }
-
-  const steps: WorkflowStep[] = parsed.steps.map((step) => ({
+const normalizeGeneratedWorkflow = (workflow: GeneratedWorkflow): GeneratedWorkflow => {
+  const steps: WorkflowStep[] = workflow.steps.map((step) => ({
     intent: step.intent.trim(),
     action: step.action.trim(),
     ...(step.toolParameters && Object.keys(step.toolParameters).length > 0
@@ -57,8 +87,8 @@ const parseGeneratedWorkflow = (text: string): GeneratedWorkflow => {
   }));
 
   return {
-    title: parsed.title.trim(),
-    goal: parsed.goal.trim(),
+    title: workflow.title.trim(),
+    goal: workflow.goal.trim(),
     steps,
   };
 };
@@ -86,17 +116,14 @@ export const generateWorkflowFromSession = async (
 
   const instructions = `You analyze completed agent sessions and produce reusable workflows.
 
-Given the conversation and tool-call trace below, return JSON with:
-- title: short workflow name (max 80 chars)
-- goal: one sentence describing the outcome
-- steps: array of { intent, action, toolParameters? }
+Given the conversation and tool-call trace below, distill the successful path into a workflow.
 
 For each step:
 - intent: why the step exists
 - action: imperative description of what to do (mention tools when relevant)
 - toolParameters: optional string map of tool arguments; use {{placeholder}} for values that should come from the user's instructions later
 
-Remove failed or exploratory steps. Keep the successful path. Include at least one step.
+Remove failed or exploratory steps. Keep the successful path.
 
 Conversation:
 ${conversationSummary}
@@ -104,18 +131,28 @@ ${conversationSummary}
 Tool-call trace:
 ${stringifyToolCalls(toolCalls)}`;
 
-  const { text } = await generateText({
-    model: LLM_MODEL,
-    prompt: instructions,
-  });
-
-  if (!text.trim()) {
-    throw new WorkflowGenerationError('Workflow generation returned an empty response');
-  }
-
   try {
-    return parseGeneratedWorkflow(text);
-  } catch {
-    throw new WorkflowGenerationError('Could not parse generated workflow JSON');
+    const { output } = await generateText({
+      model: LLM_MODEL,
+      prompt: instructions,
+      output: Output.object({
+        schema: workflowSchema,
+        name: 'GeneratedWorkflow',
+        description: 'Reusable workflow distilled from a completed agent session',
+      }),
+    });
+
+    const normalized = normalizeGeneratedWorkflow(output);
+    if (!normalized.title || !normalized.goal || normalized.steps.length === 0) {
+      throw new WorkflowGenerationError('Generated workflow is missing required fields');
+    }
+
+    return normalized;
+  } catch (error) {
+    if (error instanceof WorkflowGenerationError) throw error;
+    if (NoObjectGeneratedError.isInstance(error)) {
+      throw new WorkflowGenerationError('Could not parse generated workflow JSON');
+    }
+    throw error;
   }
 };
