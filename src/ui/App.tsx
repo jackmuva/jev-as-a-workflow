@@ -1,5 +1,5 @@
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import {
   getCapabilitySelection,
@@ -60,6 +60,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(
     () => !isCatalogEmpty(capabilityCatalog) && session.capabilities === null,
   )
+  const runAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (isCatalogEmpty(capabilityCatalog)) return
@@ -182,6 +183,10 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   }, [])
 
   useKeyboard((key) => {
+    if (key.ctrl && key.name === "c") {
+      runAbortRef.current?.abort()
+      return
+    }
     if (key.name !== "escape" || !pendingWorkflow) return
     setPendingWorkflow(null)
   })
@@ -204,8 +209,14 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       const nextMessages = [...messages, jevMessage(userMessage)]
       setMessages(nextMessages)
 
-      await jevLoop(nextMessages, setMessages)
-      setStatus("ready")
+      const runAbort = new AbortController()
+      runAbortRef.current = runAbort
+      try {
+        await jevLoop(nextMessages, setMessages, { signal: runAbort.signal })
+      } finally {
+        runAbortRef.current = null
+        setStatus("ready")
+      }
       return
     }
 
@@ -216,8 +227,14 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     const nextMessages = [...messages, jevMessage(userMessage)]
     setMessages(nextMessages)
 
-    await jevLoop(nextMessages, setMessages)
-    setStatus("ready")
+    const runAbort = new AbortController()
+    runAbortRef.current = runAbort
+    try {
+      await jevLoop(nextMessages, setMessages, { signal: runAbort.signal })
+    } finally {
+      runAbortRef.current = null
+      setStatus("ready")
+    }
   }
 
   const handleAskQuestionSubmit = async (answersText: string) => {
@@ -236,8 +253,14 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     const nextMessages = [...messages, toolResult]
     setMessages(nextMessages)
 
-    await jevLoop(nextMessages, setMessages)
-    setStatus("ready")
+    const runAbort = new AbortController()
+    runAbortRef.current = runAbort
+    try {
+      await jevLoop(nextMessages, setMessages, { signal: runAbort.signal })
+    } finally {
+      runAbortRef.current = null
+      setStatus("ready")
+    }
   }
 
   const inputDisabled = status === "working" || capabilityPickerOpen || generating
@@ -266,7 +289,13 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       </scrollbox>
       <box flexDirection="column" flexShrink={0} width="100%">
         {(status === "working" || generating) && (
-          <WorkingIndicator label={generating ? "Generating workflow…" : undefined} />
+          <WorkingIndicator
+            label={
+              generating
+                ? "Generating workflow…"
+                : "Working… (Ctrl+C to stop)"
+            }
+          />
         )}
         {status === "error" && <text>ERROR</text>}
         {pendingWorkflow && (
