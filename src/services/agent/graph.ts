@@ -21,7 +21,7 @@ import {
   listDefaultTools,
 } from './default-tools';
 import { listSkills } from './hooks/front-load';
-import { withCompactionRetry } from './hooks/compaction';
+import { withCompactOnError } from './hooks/compaction';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 import { jevMessage, toModelMessages } from './utils/jev-message';
@@ -50,7 +50,7 @@ const generateRequiredToolCall = async ({
   maxAttempts?: number;
   forceRequired?: boolean;
 }) => {
-  const { value: toolCall, messages: compactedMessages } = await withCompactionRetry(messages, async (currentMessages) => {
+  const { value: toolCall, messages: compactedMessages } = await withCompactOnError(messages, async (currentMessages) => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const toolChoice: ToolChoice<typeof tools> = forceRequired || attempt >= maxAttempts - 1 ? 'required' : { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> };
 
@@ -129,7 +129,7 @@ const formatToolList = (tools: McpTool[]) => tools
 
 export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const tools = await listAllTools();
-  const { value: answers, messages } = await withCompactionRetry(state.messages, async (currentMessages) => {
+  const { value: answers, messages } = await withCompactOnError(state.messages, async (currentMessages) => {
     const { answers } = await evaluate({
       model: SYSTEM_ONE_MODEL,
       state: [{
@@ -175,7 +175,7 @@ export const actionSelectNode = async (
   const availableTools = await listAllTools();
   const criteria = buildToolCriteria(availableTools);
 
-  const { value: answers, messages } = await withCompactionRetry(state.messages, async (currentMessages) => {
+  const { value: answers, messages } = await withCompactOnError(state.messages, async (currentMessages) => {
     const { answers } = await evaluate({
       model: SYSTEM_ONE_MODEL,
       state: [{
