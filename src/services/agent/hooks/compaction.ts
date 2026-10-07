@@ -4,6 +4,7 @@ import {
   COMPACTION_TOKEN_THRESHOLD,
   LLM_MODEL,
 } from '../../../constants';
+import { recordLlmUsage } from '../../llm/session-cost';
 import type { AgentState, JevMessage } from '../../../models/agent';
 import { jevMessage } from '../utils/jev-message';
 
@@ -127,12 +128,14 @@ export const compactMessages = async (
   const transcript = toSummarize
     .map(({ message }) => messageToText(message, { truncateToolResults: 2_000 }))
     .join('\n\n');
-  const { text: summary } = await generateText({
+  const summaryResult = await generateText({
     model: LLM_MODEL,
     instructions:
       'Summarize the following conversation history concisely. Preserve the user\'s goal, key decisions, important tool results, and progress made. Omit redundant details.',
     prompt: transcript,
   });
+  recordLlmUsage(summaryResult);
+  const { text: summary } = summaryResult;
 
   const summaryMessage = jevMessage(
     { role: 'assistant', content: summary },

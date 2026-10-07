@@ -9,6 +9,7 @@ import {
   type ToolChoice,
 } from 'ai';
 import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
+import { recordLlmUsage } from '../llm/session-cost';
 import type { AgentState, JevMessage } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
@@ -61,6 +62,7 @@ const generateRequiredToolCall = async ({
         tools,
         toolChoice,
       });
+      recordLlmUsage(result);
 
       const toolCall = result.toolCalls.find(
         (call) => toolChoice === 'required' || call.toolName === toolName,
@@ -124,7 +126,7 @@ const formatToolList = (tools: McpTool[]) => tools
 
 export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const tools = await listAllTools();
-  const { answers } = await evaluate({
+  const initialEvaluation = await evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: tools as JSONValue,
@@ -143,7 +145,9 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
       }
     },
   });
+  recordLlmUsage(initialEvaluation);
 
+  const { answers } = initialEvaluation;
   const probabilities = answers.nextStep.probabilities;
 
   if (answers.nextStep.choice === "outOfScope") {
@@ -167,7 +171,7 @@ export const actionSelectNode = async (
   const availableTools = await listAllTools();
   const criteria = buildToolCriteria(availableTools);
 
-  const { answers } = await evaluate({
+  const actionEvaluation = await evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: availableTools as JSONValue,
@@ -181,7 +185,9 @@ export const actionSelectNode = async (
       },
     },
   });
+  recordLlmUsage(actionEvaluation);
 
+  const { answers } = actionEvaluation;
   const threshold = 1 / (availableTools.length * 2);
   const probabilities = answers.selectedAction.probabilities ?? { [answers.selectedAction.choice]: 1 };
   const options = Object.entries(probabilities).filter(([, probability]) => probability > threshold)

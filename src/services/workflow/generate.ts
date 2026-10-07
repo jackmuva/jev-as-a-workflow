@@ -1,4 +1,5 @@
 import { generateText, jsonSchema, NoObjectGeneratedError, Output } from 'ai';
+import { recordLlmUsage } from '../llm/session-cost';
 import { LLM_MODEL } from '../../constants';
 import type { JevMessage } from '../../models/agent';
 import type { GeneratedWorkflow, WorkflowStep } from '../../models/workflow';
@@ -132,7 +133,7 @@ Tool-call trace:
 ${stringifyToolCalls(toolCalls)}`;
 
   try {
-    const { output } = await generateText({
+    const generation = await generateText({
       model: LLM_MODEL,
       prompt: instructions,
       output: Output.object({
@@ -141,6 +142,8 @@ ${stringifyToolCalls(toolCalls)}`;
         description: 'Reusable workflow distilled from a completed agent session',
       }),
     });
+    recordLlmUsage(generation);
+    const { output } = generation;
 
     const normalized = normalizeGeneratedWorkflow(output);
     if (!normalized.title || !normalized.goal || normalized.steps.length === 0) {

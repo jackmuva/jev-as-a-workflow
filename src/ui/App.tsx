@@ -22,7 +22,11 @@ import { WorkflowSelectionDialog } from "./components/workflow/WorkflowSelection
 import { ChatInput } from "./components/input/ChatInput"
 import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
+import { ContextCostStatusBar } from "./components/primitives/ContextCostStatusBar"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
+import { useContextMetrics } from "./hooks/useContextMetrics"
+import { useSessionCost } from "./hooks/useSessionCost"
+import { resetSessionCost } from "../services/llm/session-cost"
 import type { CompletionState } from "../models/ui"
 import { resolveUserMessage } from "./lib/input-completion/at-files"
 import type { CapabilityCatalog, CapabilitySelection, JevMessage } from "../models/agent"
@@ -75,7 +79,13 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   // eslint-disable-next-line react-hooks/exhaustive-deps -- session.capabilities is read for the current session.id
   }, [applySessionCapabilities, capabilityCatalog, session.id])
   const { width, height } = useTerminalDimensions()
+  const { contextPercent } = useContextMetrics(messages)
+  const { sessionCostUsd } = useSessionCost()
   const pendingAsk = findPendingAskQuestion(messages)
+
+  useEffect(() => {
+    resetSessionCost()
+  }, [session.id])
 
   const visibleMessages = useMemo(
     () => messages.filter(({ message }) => message.role !== "system"),
@@ -290,6 +300,11 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
             onSubmit={handleSubmit}
           />
         )}
+        <ContextCostStatusBar
+          contextPercent={contextPercent}
+          sessionCostUsd={sessionCostUsd}
+          terminalWidth={width}
+        />
       </box>
       {completion.open && (
         <CompletionOverlayDialog
