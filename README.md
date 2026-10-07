@@ -1,27 +1,14 @@
-# JaaW
+# JaaW - Jev as a Workflow
 
-JaaW (Jev as a workflow) is a terminal-based (TUI) application built on [OpenTUI](https://github.com/msmps/create-tui) that connects to MCP (Model Context Protocol) servers and renders a conversational agent interface that plans, executes tasks, and can be distilled into reusable workflows.
+JaaW is an agent harness that **puts Jev in the driver's seat**. Thinking of an agent as a workflow generator each turn is a decision point, Jev can pick from a variety of tools and actions for the next step in the workflow.
 
-## Features
+<img src="/public/jaaw-ss.png" alt="JaaW screenshot" width="800" />
 
-- **OpenTUI renderer** – built with `@opentui/core` and `@opentui/react` for a fully interactive terminal experience.
-- **Configurable LLM model** – set your preferred model via `llmModel` in `~/.jaaw/config.json` (falls back to `deepseek/deepseek-v4-flash` via `LLM_MODEL`).
-- **System model** – `SYSTEM_ONE_MODEL` (default `typesafe-ai/jev`) drives planning/decision nodes in the agent graph.
-- **MCP server integration** – loads configuration from your environment and connects to all configured MCP servers automatically at startup, with OAuth support where needed.
-- **Front-loaded message seeding** – pre-loads conversation messages (workspace instructions, enabled `AGENTS.md`, skills catalog) before the UI starts, ready for immediate display.
-- **Capability selection** – skills, MCP servers, `AGENTS.md` files, and user tools are discovered at startup and can be selectively enabled/toggled from the UI.
-- **Session persistence** – conversations persist to a SQLite store (`~/.jaaw/jaaw-sqlite.db`) and can be resumed via `/resume`.
-- **Workflows** – sessions can be distilled into reusable workflows (`/generate-workflow` / `/run-workflow`) stored in the workflow store.
-- **Skill support** – local skills discovered from `./skills`, `~/.jaaw/skills`, and `~/.cursor/skills-cursor`, loaded via the `load_skill` tool.
-- **User tools** – custom tools from `~/.jaaw/tools` registered in a `user` tool-server namespace.
-- **Agent graph** – a state machine (`START` → `PLAN` / `DISCOVERY` → `EXECUTE` → `END`, with `REWIND`) orchestrates the runtime.
-- **Rewind** – the agent can rewind to a previous conversation checkpoint when it takes the wrong path.
-- **Graceful shutdown** – closes MCP connections cleanly on process exit.
+The design behind JaaW is two-fold:
 
-## Requirements
+1. Explainability: At each turn, you can see the Jev-generated probabilities (traces)
 
-- MCP servers configured (if you want to use the MCP integration)
-- For development from source: [Bun](https://bun.sh/) 1.3.0 or later
+2. Agents as Workflows: The UX for JaaW should feel like a workflow with a series of steps, more CLI tool than a "conversational intelligence"
 
 ## Installation
 
@@ -45,14 +32,17 @@ irm https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.ps
 
 The installer downloads a standalone binary and installs it as `jaaw` (by default to `~/.local/bin` on Unix). No Bun runtime is required on the target machine.
 
-### First-run setup
+### Requirements
+
+Vercel AI Gateway API Key
+
+### Setup
 
 On first launch, JaaW creates `~/.jaaw/` with default `config.json`, `mcp.json`,
 `mcp-auth/`, and `tools/` directories. Edit `~/.jaaw/config.json` to set your
-`aiGatewayApiKey` and preferred `llmModel`, and add MCP servers to
-`~/.jaaw/mcp.json`.
+Vercel `aiGatewayApiKey` and preferred `llmModel`. Model names are found in [Vercel's mode list](https://vercel.com/ai-gateway/models).
 
-Optional local skills can be placed in `~/.jaaw/skills/`.
+Optional local skills can be placed in `~/.jaaw/skills/`. Optional MCPs can be place in `~/.jaaw/mcp.json`
 
 You can also place `AGENTS.md` files alongside your skills — these are discovered
 at startup, can seed the conversation with workspace instructions, and can be
@@ -99,12 +89,6 @@ git push origin v0.1.2
 
 Replace `v0.1.1` with the version you are releasing. Tags are pushed to GitHub and picked up by the release workflow.
 
-## Typecheck
-
-```bash
-bun run lint
-```
-
 ## Project Structure
 
 ```
@@ -126,6 +110,7 @@ src/
 │   ├── agent/            # Agent loop, graph, capabilities, prompts, skills & tools
 │   │   ├── agent-loop.ts     # Agent loop orchestration (jevLoop)
 │   │   ├── capabilities.ts   # Capability selection state & helpers
+│   │   ├── capabilities.test.ts
 │   │   ├── graph.ts          # Agent graph runtime (START/PLAN/DISCOVERY/EXECUTE/END/REWIND)
 │   │   ├── prompt.ts         # Prompt building
 │   │   ├── default-tools/    # Built-in tools (apply-patch, bash, create-plan, read-file, …)
@@ -134,13 +119,14 @@ src/
 │   │   └── utils/            # jev-message, ask-question-state helpers
 │   ├── config/           # App config loading (loadAppConfig(), ensureJevHome())
 │   ├── mcp/              # mcp-client.ts & oauth-provider.ts
-│   ├── workflow/         # build-message, extract-tool-calls, generate
-│   └── session/          # Session management
+│   └── workflow/         # build-message, extract-tool-calls, generate
 └── ui/                   # TUI components
     ├── App.tsx           # Root React component for the TUI; wires agent loop, dialogs
     ├── hooks/            # e.g. useSessionPersistence
     ├── lib/              # format / input-completion helpers
-    └── components/       # input/, session/, workflow/, primitives/ subcomponents
+    ├── syntax-style.ts       # Syntax highlighting for code views
+    ├── tool-renderers.tsx    # Tool-specific render helpers
+    └── components/       # input/, session/, tools/, workflow/, primitives/ subcomponents
 ```
 
 ## How It Works
@@ -168,6 +154,3 @@ src/
    nodes and hooks (`compactionHook`, `rewindState`).
 8. **Shutdown** – an exit handler closes all MCP connections cleanly.
 
----
-
-This project was created using `bun create tui`. [create-tui](https://github.com/msmps/create-tui) is the easiest way to get started with OpenTUI.
