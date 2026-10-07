@@ -80,7 +80,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   }, [applySessionCapabilities, capabilityCatalog, session.id])
   const { width, height } = useTerminalDimensions()
   const { contextPercent } = useContextMetrics(messages)
-  const { sessionCostUsd } = useSessionCost()
+  const { sessionCostUsd, sessionTokensUsed } = useSessionCost()
   const pendingAsk = findPendingAskQuestion(messages)
 
   useEffect(() => {
@@ -302,6 +302,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
         )}
         <ContextCostStatusBar
           contextPercent={contextPercent}
+          sessionTokensUsed={sessionTokensUsed}
           sessionCostUsd={sessionCostUsd}
           terminalWidth={width}
         />

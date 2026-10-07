@@ -16,9 +16,19 @@ describe('session-cost', () => {
     expect(getSessionUsageState().sessionCostUsd).toBeCloseTo(0.0035);
   });
 
+  test('accumulates token usage from AI SDK usage field', () => {
+    recordLlmUsage({ usage: { totalTokens: 500 } });
+    recordLlmUsage({ usage: { inputTokens: 1200, outputTokens: 300 } });
+    expect(getSessionUsageState().sessionTokensUsed).toBe(2000);
+  });
+
   test('reset clears accumulated cost', () => {
-    recordLlmUsage({ providerMetadata: { gateway: { cost: '0.01' } } });
+    recordLlmUsage({
+      providerMetadata: { gateway: { cost: '0.01' } },
+      usage: { totalTokens: 100 },
+    });
     resetSessionCost();
     expect(getSessionUsageState().sessionCostUsd).toBe(0);
+    expect(getSessionUsageState().sessionTokensUsed).toBe(0);
   });
 });
