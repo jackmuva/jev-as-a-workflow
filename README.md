@@ -6,9 +6,9 @@ JaaW is an agent harness that **puts Jev in the driver's seat**. Thinking of an 
 
 The design behind JaaW is two-fold:
 
-1. Explainability: At each turn, you can see the Jev-generated probabilities (traces)
+1. **Explainability**: At each turn, you can see the Jev-generated probabilities (traces)
 
-2. Agents as Workflows: The UX for JaaW should feel like a workflow with a series of steps, more CLI tool than a "conversational intelligence"
+2. **Agents as Workflows**: The UX for JaaW should feel like a workflow with a series of steps, more CLI tool than a "conversational intelligence"
 
 ## Installation
 
@@ -32,21 +32,26 @@ irm https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.ps
 
 The installer downloads a standalone binary and installs it as `jaaw` (by default to `~/.local/bin` on Unix). No Bun runtime is required on the target machine.
 
+## Setup
+
 ### Requirements
 
-Vercel AI Gateway API Key
+**Vercel AI Gateway API Key**: You can pick one up at [Vercel's website](https://vercel.com/ai-gateway), and allows you to toggle between different models.
 
-### Setup
+### Configure
 
 On first launch, JaaW creates `~/.jaaw/` with default `config.json`, `mcp.json`,
-`mcp-auth/`, and `tools/` directories. Edit `~/.jaaw/config.json` to set your
-Vercel `aiGatewayApiKey` and preferred `llmModel`. Model names are found in [Vercel's mode list](https://vercel.com/ai-gateway/models).
+`mcp-auth/`, and `tools/` directories. 
 
-Optional local skills can be placed in `~/.jaaw/skills/`. Optional MCPs can be place in `~/.jaaw/mcp.json` and follow [Cursor's MCP config format](https://cursor.com/docs/mcp#installing-mcp-servers).
+1. Edit `~/.jaaw/config.json` to set your Vercel `aiGatewayApiKey` and preferred `llmModel`. Model names are found in [Vercel's mode list](https://vercel.com/ai-gateway/models).
 
-You can also place `AGENTS.md` files alongside your skills — these are discovered
-at startup, can seed the conversation with workspace instructions, and can be
-toggled on/off as a capability from the UI.
+2. \[Optional\] local skills can be placed in `~/.jaaw/skills/`.
+
+3. \[Optional\] MCPs can be place in `~/.jaaw/mcp.json` and follow [Cursor's MCP config format](https://cursor.com/docs/mcp#installing-mcp-servers).
+
+4. \[Optional\] `AGENTS.md` files alongside your skills
+
+Skills, MCPs, and templates can all be toggled in each session to keep the context window focused.
 
 ## Usage
 
