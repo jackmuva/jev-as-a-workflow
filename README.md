@@ -42,7 +42,7 @@ On first launch, JaaW creates `~/.jaaw/` with default `config.json`, `mcp.json`,
 `mcp-auth/`, and `tools/` directories. Edit `~/.jaaw/config.json` to set your
 Vercel `aiGatewayApiKey` and preferred `llmModel`. Model names are found in [Vercel's mode list](https://vercel.com/ai-gateway/models).
 
-Optional local skills can be placed in `~/.jaaw/skills/`. Optional MCPs can be place in `~/.jaaw/mcp.json`
+Optional local skills can be placed in `~/.jaaw/skills/`. Optional MCPs can be place in `~/.jaaw/mcp.json` and follow [Cursor's MCP config format](https://cursor.com/docs/mcp#installing-mcp-servers).
 
 You can also place `AGENTS.md` files alongside your skills — these are discovered
 at startup, can seed the conversation with workspace instructions, and can be
