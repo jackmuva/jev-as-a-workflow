@@ -21,7 +21,7 @@ import {
   listDefaultTools,
 } from './default-tools';
 import { listSkills } from './hooks/front-load';
-import { withCompactOnError } from './hooks/compaction';
+import { compactMessages } from './hooks/compaction';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 import { jevMessage, toModelMessages } from './utils/jev-message';
@@ -50,7 +50,9 @@ const generateRequiredToolCall = async ({
   maxAttempts?: number;
   forceRequired?: boolean;
 }) => {
-  const { value: toolCall, messages: compactedMessages } = await withCompactOnError(messages, async (currentMessages) => {
+  let currentMessages = messages;
+
+  const run = async () => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const toolChoice: ToolChoice<typeof tools> = forceRequired || attempt >= maxAttempts - 1 ? 'required' : { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> };
 
@@ -74,9 +76,19 @@ const generateRequiredToolCall = async ({
     }
 
     return undefined;
-  });
+  };
 
-  return { toolCall, messages: compactedMessages };
+  let toolCall: Awaited<ReturnType<typeof run>>;
+  try {
+    toolCall = await run();
+  } catch (error) {
+    const compacted = await compactMessages(currentMessages, { force: true });
+    if (compacted === currentMessages) throw error;
+    currentMessages = compacted;
+    toolCall = await run();
+  }
+
+  return { toolCall, messages: currentMessages };
 };
 
 const CREATE_PLAN_ACTION = 'CreatePlan';
@@ -129,28 +141,37 @@ const formatToolList = (tools: McpTool[]) => tools
 
 export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const tools = await listAllTools();
-  const { value: answers, messages } = await withCompactOnError(state.messages, async (currentMessages) => {
-    const { answers } = await evaluate({
-      model: SYSTEM_ONE_MODEL,
-      state: [{
-        toolsAvailable: tools as JSONValue,
-        messages: toModelMessages(currentMessages) as JSONValue
-      }],
-      questions: {
-        nextStep: {
-          type: "choice",
-          instructions: "Based off the user's last ask and the tools given, what should we do?",
-          criteria: {
-            "directAnswer": "The user wants a command or action performed with a single tool call.",
-            "createPlan": "The user's task is a multi-step problem. We should create a plan.",
-            "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
-            "outOfScope": "The task is outside of the capabilities given the tools"
-          }
+  let messages = state.messages;
+
+  const runEvaluate = () => evaluate({
+    model: SYSTEM_ONE_MODEL,
+    state: [{
+      toolsAvailable: tools as JSONValue,
+      messages: toModelMessages(messages) as JSONValue
+    }],
+    questions: {
+      nextStep: {
+        type: "choice",
+        instructions: "Based off the user's last ask and the tools given, what should we do?",
+        criteria: {
+          "directAnswer": "The user wants a command or action performed with a single tool call.",
+          "createPlan": "The user's task is a multi-step problem. We should create a plan.",
+          "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
+          "outOfScope": "The task is outside of the capabilities given the tools"
         }
-      },
-    });
-    return answers;
+      }
+    },
   });
+
+  let answers: Awaited<ReturnType<typeof runEvaluate>>['answers'];
+  try {
+    ({ answers } = await runEvaluate());
+  } catch (error) {
+    const compacted = await compactMessages(messages, { force: true });
+    if (compacted === messages) throw error;
+    messages = compacted;
+    ({ answers } = await runEvaluate());
+  }
 
   const probabilities = answers.nextStep.probabilities;
 
@@ -175,23 +196,32 @@ export const actionSelectNode = async (
   const availableTools = await listAllTools();
   const criteria = buildToolCriteria(availableTools);
 
-  const { value: answers, messages } = await withCompactOnError(state.messages, async (currentMessages) => {
-    const { answers } = await evaluate({
-      model: SYSTEM_ONE_MODEL,
-      state: [{
-        toolsAvailable: availableTools as JSONValue,
-        messages: toModelMessages(currentMessages) as JSONValue,
-      }],
-      questions: {
-        selectedAction: {
-          type: 'choice',
-          instructions: 'Which action should we call next?',
-          criteria,
-        },
+  let messages = state.messages;
+
+  const runEvaluate = () => evaluate({
+    model: SYSTEM_ONE_MODEL,
+    state: [{
+      toolsAvailable: availableTools as JSONValue,
+      messages: toModelMessages(messages) as JSONValue,
+    }],
+    questions: {
+      selectedAction: {
+        type: 'choice',
+        instructions: 'Which action should we call next?',
+        criteria,
       },
-    });
-    return answers;
+    },
   });
+
+  let answers: Awaited<ReturnType<typeof runEvaluate>>['answers'];
+  try {
+    ({ answers } = await runEvaluate());
+  } catch (error) {
+    const compacted = await compactMessages(messages, { force: true });
+    if (compacted === messages) throw error;
+    messages = compacted;
+    ({ answers } = await runEvaluate());
+  }
 
   const threshold = 1 / (availableTools.length * 2);
   const probabilities = answers.selectedAction.probabilities ?? { [answers.selectedAction.choice]: 1 };

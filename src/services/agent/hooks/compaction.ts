@@ -155,16 +155,3 @@ export const compactionHook = async (state: AgentState): Promise<AgentState> => 
   return messages === state.messages ? state : { ...state, messages };
 };
 
-/** On failure, force-compact history once and retry. Returns compacted messages when used. */
-export const withCompactOnError = async <T>(
-  messages: JevMessage[],
-  run: (messages: JevMessage[]) => Promise<T>,
-): Promise<{ value: T; messages: JevMessage[] }> => {
-  try {
-    return { value: await run(messages), messages };
-  } catch (error) {
-    const compacted = await compactMessages(messages, { force: true });
-    if (compacted === messages) throw error;
-    return { value: await run(compacted), messages: compacted };
-  }
-};
