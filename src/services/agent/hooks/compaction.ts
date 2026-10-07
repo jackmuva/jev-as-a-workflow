@@ -1,3 +1,4 @@
+import { APICallError } from '@ai-sdk/provider';
 import { generateText, type ModelMessage } from 'ai';
 import {
   COMPACTION_CONTEXT_WINDOW,
@@ -14,12 +15,15 @@ export type CompactionOptions = {
   contextWindow?: number;
   /** Fraction of context window that triggers compaction (0–1). Defaults to COMPACTION_TOKEN_THRESHOLD. */
   tokenThreshold?: number;
+  /** Run summarization even when the token estimate is below the threshold. */
+  force?: boolean;
 };
 
-const DEFAULT_OPTIONS: Required<CompactionOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<CompactionOptions, 'force'>> & Pick<CompactionOptions, 'force'> = {
   keepAssistantMessages: 4,
   contextWindow: COMPACTION_CONTEXT_WINDOW,
   tokenThreshold: COMPACTION_TOKEN_THRESHOLD,
+  force: false,
 };
 
 const truncate = (text: string, max: number): string =>
@@ -107,13 +111,13 @@ export const compactMessages = async (
   messages: JevMessage[],
   options: CompactionOptions = {},
 ): Promise<JevMessage[]> => {
-  const { keepAssistantMessages, contextWindow, tokenThreshold } = {
+  const { keepAssistantMessages, contextWindow, tokenThreshold, force } = {
     ...DEFAULT_OPTIONS,
     ...options,
   };
 
   const tokenLimit = contextWindow * tokenThreshold;
-  if (estimateMessagesTokens(messages) < tokenLimit) {
+  if (!force && estimateMessagesTokens(messages) < tokenLimit) {
     return messages;
   }
 
@@ -150,4 +154,59 @@ export const compactMessages = async (
 export const compactionHook = async (state: AgentState): Promise<AgentState> => {
   const messages = await compactMessages(state.messages);
   return messages === state.messages ? state : { ...state, messages };
+};
+
+const CONTEXT_LIMIT_STATUS_CODES = new Set([400, 413]);
+
+/** True when an API failure likely means the request context was too large. */
+export const isContextLimitApiError = (error: unknown): boolean => {
+  if (!APICallError.isInstance(error)) return false;
+  if (error.statusCode != null && CONTEXT_LIMIT_STATUS_CODES.has(error.statusCode)) {
+    return true;
+  }
+  const body = (error.responseBody ?? error.message).toLowerCase();
+  return /context|context_length|token|too (?:large|long)|maximum/.test(body);
+};
+
+export type CompactionRetryOptions = {
+  /** Compaction retries after the first failed attempt (default 1 → two API attempts total). */
+  maxCompactionRetries?: number;
+};
+
+/**
+ * Runs an LLM call; on context-limit API errors, force-compacts history and retries.
+ * Returns the successful result and the (possibly compacted) messages to keep in state.
+ */
+export const withCompactionRetry = async <T>(
+  messages: JevMessage[],
+  run: (messages: JevMessage[]) => Promise<T>,
+  options: CompactionRetryOptions = {},
+): Promise<{ value: T; messages: JevMessage[] }> => {
+  const maxCompactionRetries = options.maxCompactionRetries ?? 1;
+  let current = messages;
+  let lastError: unknown;
+
+  for (let compactionAttempt = 0; compactionAttempt <= maxCompactionRetries; compactionAttempt++) {
+    try {
+      const value = await run(current);
+      return { value, messages: current };
+    } catch (error) {
+      lastError = error;
+      if (compactionAttempt >= maxCompactionRetries || !isContextLimitApiError(error)) {
+        throw error;
+      }
+
+      const keepAssistantMessages = Math.max(
+        1,
+        DEFAULT_OPTIONS.keepAssistantMessages - compactionAttempt,
+      );
+      const compacted = await compactMessages(current, { force: true, keepAssistantMessages });
+      if (compacted === current) {
+        throw error;
+      }
+      current = compacted;
+    }
+  }
+
+  throw lastError;
 };

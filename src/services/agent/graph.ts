@@ -21,6 +21,7 @@ import {
   listDefaultTools,
 } from './default-tools';
 import { listSkills } from './hooks/front-load';
+import { withCompactionRetry } from './hooks/compaction';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 import { jevMessage, toModelMessages } from './utils/jev-message';
@@ -49,29 +50,33 @@ const generateRequiredToolCall = async ({
   maxAttempts?: number;
   forceRequired?: boolean;
 }) => {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const toolChoice: ToolChoice<typeof tools> = forceRequired || attempt >= maxAttempts - 1 ? 'required' : { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> };
+  const { value: toolCall, messages: compactedMessages } = await withCompactionRetry(messages, async (currentMessages) => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const toolChoice: ToolChoice<typeof tools> = forceRequired || attempt >= maxAttempts - 1 ? 'required' : { type: 'tool', toolName: toolName as Extract<keyof typeof tools, string> };
 
-    try {
-      const prompt = preparePrompt(instructions, messages);
-      const result = await generateText({
-        model: LLM_MODEL,
-        instructions: prompt.instructions,
-        messages: prompt.messages,
-        tools,
-        toolChoice,
-      });
+      try {
+        const prompt = preparePrompt(instructions, currentMessages);
+        const result = await generateText({
+          model: LLM_MODEL,
+          instructions: prompt.instructions,
+          messages: prompt.messages,
+          tools,
+          toolChoice,
+        });
 
-      const toolCall = result.toolCalls.find(
-        (call) => toolChoice === 'required' || call.toolName === toolName,
-      );
-      if (toolCall) return toolCall;
-    } catch (error) {
-      if (!ToolChoiceViolationError.isInstance(error)) throw error;
+        const toolCall = result.toolCalls.find(
+          (call) => toolChoice === 'required' || call.toolName === toolName,
+        );
+        if (toolCall) return toolCall;
+      } catch (error) {
+        if (!ToolChoiceViolationError.isInstance(error)) throw error;
+      }
     }
-  }
 
-  return undefined;
+    return undefined;
+  });
+
+  return { toolCall, messages: compactedMessages };
 };
 
 const CREATE_PLAN_ACTION = 'CreatePlan';
@@ -124,24 +129,27 @@ const formatToolList = (tools: McpTool[]) => tools
 
 export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const tools = await listAllTools();
-  const { answers } = await evaluate({
-    model: SYSTEM_ONE_MODEL,
-    state: [{
-      toolsAvailable: tools as JSONValue,
-      messages: toModelMessages(state.messages) as JSONValue
-    }],
-    questions: {
-      nextStep: {
-        type: "choice",
-        instructions: "Based off the user's last ask and the tools given, what should we do?",
-        criteria: {
-          "directAnswer": "The user wants a command or action performed with a single tool call.",
-          "createPlan": "The user's task is a multi-step problem. We should create a plan.",
-          "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
-          "outOfScope": "The task is outside of the capabilities given the tools"
+  const { value: answers, messages } = await withCompactionRetry(state.messages, async (currentMessages) => {
+    const { answers } = await evaluate({
+      model: SYSTEM_ONE_MODEL,
+      state: [{
+        toolsAvailable: tools as JSONValue,
+        messages: toModelMessages(currentMessages) as JSONValue
+      }],
+      questions: {
+        nextStep: {
+          type: "choice",
+          instructions: "Based off the user's last ask and the tools given, what should we do?",
+          criteria: {
+            "directAnswer": "The user wants a command or action performed with a single tool call.",
+            "createPlan": "The user's task is a multi-step problem. We should create a plan.",
+            "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
+            "outOfScope": "The task is outside of the capabilities given the tools"
+          }
         }
-      }
-    },
+      },
+    });
+    return answers;
   });
 
   const probabilities = answers.nextStep.probabilities;
@@ -151,13 +159,13 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
       role: 'assistant',
       content: "task out of scope"
     };
-    return { state: "END", messages: [...state.messages, jevMessage(message)] };
+    return { state: "END", messages: [...messages, jevMessage(message)] };
   } else if (answers.nextStep.choice === "createPlan") {
-    return { state: "PLAN", messages: state.messages, probabilities };
+    return { state: "PLAN", messages, probabilities };
   } else if (answers.nextStep.choice === "directAnswer") {
-    return { state: "EXECUTE", messages: state.messages };
+    return { state: "EXECUTE", messages };
   } else {
-    return { state: "DISCOVERY", messages: state.messages, probabilities };
+    return { state: "DISCOVERY", messages, probabilities };
   }
 }
 
@@ -167,19 +175,22 @@ export const actionSelectNode = async (
   const availableTools = await listAllTools();
   const criteria = buildToolCriteria(availableTools);
 
-  const { answers } = await evaluate({
-    model: SYSTEM_ONE_MODEL,
-    state: [{
-      toolsAvailable: availableTools as JSONValue,
-      messages: toModelMessages(state.messages) as JSONValue,
-    }],
-    questions: {
-      selectedAction: {
-        type: 'choice',
-        instructions: 'Which action should we call next?',
-        criteria,
+  const { value: answers, messages } = await withCompactionRetry(state.messages, async (currentMessages) => {
+    const { answers } = await evaluate({
+      model: SYSTEM_ONE_MODEL,
+      state: [{
+        toolsAvailable: availableTools as JSONValue,
+        messages: toModelMessages(currentMessages) as JSONValue,
+      }],
+      questions: {
+        selectedAction: {
+          type: 'choice',
+          instructions: 'Which action should we call next?',
+          criteria,
+        },
       },
-    },
+    });
+    return answers;
   });
 
   const threshold = 1 / (availableTools.length * 2);
@@ -197,7 +208,7 @@ export const actionSelectNode = async (
     };
     return {
       state: {
-        state: "END", messages: [...state.messages, jevMessage(message)],
+        state: "END", messages: [...messages, jevMessage(message)],
       },
       options: [],
     };
@@ -208,7 +219,7 @@ export const actionSelectNode = async (
     };
     return {
       state: {
-        state: "REWIND", messages: [...state.messages, jevMessage(message)],
+        state: "REWIND", messages: [...messages, jevMessage(message)],
       },
       options,
     };
@@ -218,14 +229,14 @@ export const actionSelectNode = async (
       content: "Unable to complete the task with given tools",
     };
     return {
-      state: { state: "END", messages: [...state.messages, jevMessage(message)] },
+      state: { state: "END", messages: [...messages, jevMessage(message)] },
       options: [],
     };
   }
   return {
     state: {
       state: 'EXECUTE',
-      messages: state.messages,
+      messages,
       selectedTool: selectedAction,
       probabilities,
     },
@@ -243,7 +254,7 @@ ${toolList || '(none)'}
 
 Call the CreatePlan tool with the plan as a markdown numbered list.`;
 
-  let toolCall = await generateRequiredToolCall({
+  let { toolCall, messages } = await generateRequiredToolCall({
     instructions: planInstructions,
     messages: state.messages,
     tools: { CreatePlan: createPlanTool },
@@ -253,12 +264,12 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
   });
 
   if (!toolCall) {
-    toolCall = await generateRequiredToolCall({
+    ({ toolCall, messages } = await generateRequiredToolCall({
       instructions: planInstructions,
-      messages: state.messages,
+      messages,
       tools: { CreatePlan: createPlanTool },
       toolName: CREATE_PLAN_ACTION,
-    });
+    }));
   }
 
   if (!toolCall) {
@@ -266,7 +277,7 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
       role: 'assistant',
       content: 'Could not create a plan for this task.',
     };
-    return { state: 'EXECUTE', messages: [...state.messages, jevMessage(message)] };
+    return { state: 'EXECUTE', messages: [...messages, jevMessage(message)] };
   }
 
   const input = toolCall.input as CreatePlanInput;
@@ -275,7 +286,7 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
   return {
     state: 'EXECUTE',
     messages: [
-      ...state.messages,
+      ...messages,
       jevMessage(toolCallMessage, state.probabilities),
       jevMessage(toolResultMessage),
     ],
@@ -283,7 +294,7 @@ Call the CreatePlan tool with the plan as a markdown numbered list.`;
 };
 
 export const clarifyTaskNode = async (state: AgentState): Promise<AgentState> => {
-  const toolCall = await generateRequiredToolCall({
+  const { toolCall, messages } = await generateRequiredToolCall({
     instructions: `You are helping clarify an ambiguous user task. Ask 1-3 focused follow-up questions to resolve what is unclear.
 
 
@@ -298,7 +309,7 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
       role: 'assistant',
       content: 'I need a bit more detail to proceed. Could you clarify your request?',
     };
-    return { state: 'DISCOVERY', messages: [...state.messages, jevMessage(message)] };
+    return { state: 'DISCOVERY', messages: [...messages, jevMessage(message)] };
   }
 
   const input = toolCall.input as AskQuestionInput;
@@ -314,7 +325,7 @@ Call the AskQuestion tool with concrete options for each question. Provide 2-4 l
 
   return {
     state: 'DISCOVERY',
-    messages: [...state.messages, jevMessage(message, state.probabilities)],
+    messages: [...messages, jevMessage(message, state.probabilities)],
   };
 };
 
@@ -357,7 +368,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
     ? `The user asked a question. Call the ${toolName} tool with a clear, helpful answer based on the conversation and your knowledge.`
     : `Call the ${toolName} tool with the arguments needed to make progress on the user's task.`;
 
-  const toolCall = await generateRequiredToolCall({
+  const { toolCall, messages } = await generateRequiredToolCall({
     instructions,
     messages: state.messages,
     tools: { [toolName]: aiTool },
@@ -369,7 +380,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
       role: 'assistant',
       content: `Could not determine arguments for ${selectedTool}.`,
     };
-    return { ...state, state: 'EXECUTE', messages: [...state.messages, jevMessage(message)] };
+    return { ...state, state: 'EXECUTE', messages: [...messages, jevMessage(message)] };
   }
 
   const toolCallMessage: ModelMessage = {
@@ -392,7 +403,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
   return {
     state: 'EXECUTE',
     messages: [
-      ...state.messages,
+      ...messages,
       jevMessage(toolCallMessage, state.probabilities),
       jevMessage(toolResultMessage),
     ],
