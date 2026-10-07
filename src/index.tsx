@@ -31,7 +31,18 @@ const capabilityCatalog: CapabilityCatalog = {
 }
 
 process.on("exit", () => { void mcpClient.close() })
-const renderer = await createCliRenderer()
+const renderer = await createCliRenderer({
+  exitOnCtrlC: false,
+  exitSignals: [
+    "SIGTERM",
+    "SIGQUIT",
+    "SIGABRT",
+    "SIGHUP",
+    "SIGBREAK",
+    "SIGPIPE",
+    "SIGBUS",
+  ],
+})
 createRoot(renderer).render((
   <App
     initialMessage={initialMessage}

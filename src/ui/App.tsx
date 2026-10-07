@@ -1,4 +1,4 @@
-import { useKeyboard, useTerminalDimensions } from "@opentui/react"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { jevLoop } from "../services/agent/agent-loop"
 import {
@@ -61,6 +61,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     () => !isCatalogEmpty(capabilityCatalog) && session.capabilities === null,
   )
   const runAbortRef = useRef<AbortController | null>(null)
+  const renderer = useRenderer()
 
   useEffect(() => {
     if (isCatalogEmpty(capabilityCatalog)) return
@@ -72,8 +73,6 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     } else {
       setCapabilityPickerOpen(true)
     }
-  // Re-run when the active session changes (startup, resume, /clear).
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- session.capabilities is read for the current session.id
   }, [applySessionCapabilities, capabilityCatalog, session.id])
   const { width, height } = useTerminalDimensions()
   const pendingAsk = findPendingAskQuestion(messages)
@@ -184,7 +183,11 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
 
   useKeyboard((key) => {
     if (key.ctrl && key.name === "c") {
-      runAbortRef.current?.abort()
+      if (status === "working" || generating) {
+        runAbortRef.current?.abort()
+      } else {
+        renderer.destroy()
+      }
       return
     }
     if (key.name !== "escape" || !pendingWorkflow) return
