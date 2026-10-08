@@ -88,11 +88,11 @@ bun run build:all
 Create and push a new version tag:
 
 ```bash
-git tag -a v0.1.5 -m "v0.1.5"
-git push origin v0.1.5
+git tag -a v0.1.7 -m "v0.1.7"
+git push origin v0.1.7
 ```
 
-Replace `v0.1.4` with the version you are releasing. Tags are pushed to GitHub and picked up by the release workflow.
+Replace `v0.1.7` with the version you are releasing. Tags are pushed to GitHub and picked up by the release workflow.
 
 ## Project Structure
 

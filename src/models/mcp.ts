@@ -1,5 +1,4 @@
 export type StdioServerConfig = {
-  type?: "stdio",
   enabled?: boolean,
   command: string,
   args?: string[],
@@ -7,7 +6,6 @@ export type StdioServerConfig = {
 }
 
 export type HttpServerConfig = {
-  type: "http",
   enabled?: boolean,
   url: string,
   headers?: Record<string, string>,

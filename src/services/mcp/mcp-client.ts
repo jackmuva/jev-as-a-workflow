@@ -7,6 +7,7 @@ import type { ToolModelMessage } from 'ai';
 import { FileOAuthProvider } from './oauth-provider';
 import type {
   HttpServerConfig,
+  StdioServerConfig,
   McpConfig,
   McpConnectionStatus,
   McpServerConfig,
@@ -17,7 +18,9 @@ import { MCP_CONFIG_PATH } from '../../constants';
 
 const CLIENT_INFO = { name: 'jaaw', version: '0.1.0' };
 
-const createStdioTransport = (config: Exclude<McpServerConfig, HttpServerConfig>): Transport =>
+const isHttpConfig = (config: McpServerConfig): config is HttpServerConfig => 'url' in config;
+
+const createStdioTransport = (config: StdioServerConfig): Transport =>
   new StdioClientTransport({
     command: config.command,
     args: config.args,
@@ -26,7 +29,7 @@ const createStdioTransport = (config: Exclude<McpServerConfig, HttpServerConfig>
     stderr: 'pipe',
   });
 
-const createHttpTransport = (config: HttpServerConfig, authProvider?: FileOAuthProvider) =>{
+const createHttpTransport = (config: HttpServerConfig, authProvider?: FileOAuthProvider) => {
   return new StreamableHTTPClientTransport(new URL(config.url), {
     requestInit: { headers: config.headers },
     authProvider,
@@ -39,8 +42,6 @@ const formatContent = (parts: ContentPart[]): string =>
   parts.map((part) => {
     switch (part.type) {
       case 'text':
-        return part.text ?? '';
-      case 'resource':
         return part.resource?.text ?? `[resource: ${part.resource?.uri}]`;
       default:
         return `[${part.type}${part.mimeType ? `: ${part.mimeType}` : ''}]`;
@@ -69,7 +70,7 @@ export class McpClientManager {
   async connect(name: string, config: McpServerConfig) {
     await this.disconnect(name);
 
-    const client = config.type === 'http'
+    const client = isHttpConfig(config)
       ? await this.connectHttp(name, config)
       : await this.connectClient(createStdioTransport(config));
     this.clients.set(name, client);
@@ -94,7 +95,7 @@ export class McpClientManager {
   async logout(name: string) {
     await this.disconnect(name);
     const config = this.config.mcpServers[name];
-    if (config?.type === 'http') await this.createAuthProvider(name, config)?.invalidateCredentials('all');
+    if (config && isHttpConfig(config)) await this.createAuthProvider(name, config)?.invalidateCredentials('all');
   }
 
   private async connectClient(transport: Transport) {
