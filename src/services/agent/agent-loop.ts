@@ -107,9 +107,7 @@ export const jevLoop = async (
       state = sync({ ...state, selectedTool: undefined, probabilities: undefined }, callback);
     }
 
-    if (state.state === 'END') {
-      return;
-    }
+    if (state.state === 'END') return;
     if (state.state === 'REWIND') {
       const { state: rewoundState, checkpoints: rewoundCheckpoints } = rewindState(checkpoints, state);
       checkpoints = rewoundCheckpoints;
