@@ -78,18 +78,25 @@ const generateRequiredToolCall = async ({
 const CREATE_PLAN_ACTION = 'CreatePlan';
 const ASK_QUESTION_ACTION = 'AskQuestion';
 
-type SlimMcpTool = Pick<McpTool, 'server' | 'name' | 'description'>;
+type EvaluateMcpTool = Pick<McpTool, 'server' | 'name' | 'description' | 'inputSchema'>;
 
-const slimToolsForEvaluate = (tools: McpTool[]): SlimMcpTool[] =>
-  tools.map(({ server, name, description }) => ({ server, name, description }));
+const toolsForEvaluateState = (tools: McpTool[]): EvaluateMcpTool[] =>
+  tools.map(({ server, name, description, inputSchema }) => ({
+    server,
+    name,
+    description,
+    inputSchema,
+  }));
 
 const buildToolCriteria = (tools: McpTool[]) => {
   let criteria: {
     [action: string]: {
       description: string,
+      inputSchema?: JSONValue,
     }
   } = Object.fromEntries(tools.map((t) => [mcpToolKey(t), {
     description: t.description ?? 'No description provided',
+    inputSchema: t.inputSchema as JSONValue,
   }]));
 
   criteria = {
@@ -131,7 +138,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const initialEvaluation = await retryModelCall(() => evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
-      toolsAvailable: slimToolsForEvaluate(tools) as JSONValue,
+      toolsAvailable: toolsForEvaluateState(tools) as JSONValue,
       messages: toModelMessages(state.messages) as JSONValue,
     }],
     questions: {

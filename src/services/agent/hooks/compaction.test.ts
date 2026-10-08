@@ -63,4 +63,37 @@ describe('shrinkMessagesToTokenBudget', () => {
       expect(String(value).length).toBeLessThan(80_000);
     }
   });
+
+  test('truncates older tool results before the latest tool result', () => {
+    const payload = (size: number, id: string): JevMessage => ({
+      message: {
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: id,
+          toolName: 'default/read_file',
+          output: { type: 'text', value: 'x'.repeat(size) },
+        }],
+      },
+    });
+    const messages: JevMessage[] = [
+      { message: { role: 'user', content: 'compare files' } },
+      payload(80_000, 'old'),
+      payload(80_000, 'new'),
+    ];
+    const tokenLimit = COMPACTION_CONTEXT_WINDOW * COMPACTION_TOKEN_THRESHOLD;
+
+    const shrunk = shrinkMessagesToTokenBudget(messages, tokenLimit);
+    const oldValue = shrunk[1]?.message.role === 'tool' && Array.isArray(shrunk[1].message.content)
+      && shrunk[1].message.content[0]?.type === 'tool-result' && 'value' in shrunk[1].message.content[0].output
+      ? String(shrunk[1].message.content[0].output.value)
+      : '';
+    const newValue = shrunk[2]?.message.role === 'tool' && Array.isArray(shrunk[2].message.content)
+      && shrunk[2].message.content[0]?.type === 'tool-result' && 'value' in shrunk[2].message.content[0].output
+      ? String(shrunk[2].message.content[0].output.value)
+      : '';
+
+    expect(oldValue.length).toBeLessThan(80_000);
+    expect(newValue.length).toBeGreaterThan(oldValue.length);
+  });
 });

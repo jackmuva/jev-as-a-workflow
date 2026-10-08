@@ -92,6 +92,24 @@ const truncateToolResultParts = (message: ModelMessage, maxChars: number): Model
   return changed ? { ...message, content } as ModelMessage : message;
 };
 
+const TOOL_TRUNCATE_STEPS = [12_000, 8_000, 4_000, 2_000, 800, 400] as const;
+
+const getToolMessageIndicesOldestFirst = (messages: JevMessage[]): number[] =>
+  messages
+    .map((entry, index) => (entry.message.role === 'tool' ? index : -1))
+    .filter((index) => index >= 0);
+
+const applyToolResultCharLimits = (
+  messages: JevMessage[],
+  limitsByIndex: Map<number, number>,
+): JevMessage[] =>
+  messages.map((entry, index) => {
+    const limit = limitsByIndex.get(index);
+    if (limit == null) return entry;
+    const message = truncateToolResultParts(entry.message, limit);
+    return message === entry.message ? entry : { ...entry, message };
+  });
+
 /** Shrink retained tool payloads when summarization cannot run (everything is in the keep window). */
 export const shrinkMessagesToTokenBudget = (
   messages: JevMessage[],
@@ -99,29 +117,30 @@ export const shrinkMessagesToTokenBudget = (
 ): JevMessage[] => {
   if (estimateMessagesTokens(messages) <= tokenLimit) return messages;
 
-  let maxChars = 12_000;
+  const toolIndices = getToolMessageIndicesOldestFirst(messages);
+  if (toolIndices.length === 0) return messages;
+
+  const limitsByIndex = new Map<number, number>();
   let current = messages;
 
-  while (estimateMessagesTokens(current) > tokenLimit && maxChars >= 400) {
-    const toolIndices = current
-      .map((entry, index) => (entry.message.role === 'tool' ? index : -1))
-      .filter((index) => index >= 0);
-    const protectLatestTool = toolIndices.at(-1);
+  const shrinkIndicesInOrder = (indices: number[]) => {
+    for (const step of TOOL_TRUNCATE_STEPS) {
+      if (estimateMessagesTokens(current) <= tokenLimit) return;
+      for (const index of indices) {
+        if (estimateMessagesTokens(current) <= tokenLimit) return;
+        const previous = limitsByIndex.get(index) ?? Number.POSITIVE_INFINITY;
+        limitsByIndex.set(index, Math.min(previous, step));
+        current = applyToolResultCharLimits(current, limitsByIndex);
+      }
+    }
+  };
 
-    current = current.map((entry, index) => {
-      const limit = index === protectLatestTool && maxChars > 800 ? maxChars * 2 : maxChars;
-      const message = truncateToolResultParts(entry.message, limit);
-      return message === entry.message ? entry : { ...entry, message };
-    });
-    maxChars -= 400;
-  }
+  const olderToolIndices = toolIndices.slice(0, -1);
+  const latestToolIndex = toolIndices.at(-1);
 
-  if (estimateMessagesTokens(current) > tokenLimit) {
-    current = current.map((entry) => {
-      if (entry.message.role !== 'tool' && entry.message.role !== 'assistant') return entry;
-      const message = truncateToolResultParts(entry.message, 400);
-      return message === entry.message ? entry : { ...entry, message };
-    });
+  shrinkIndicesInOrder(olderToolIndices);
+  if (estimateMessagesTokens(current) > tokenLimit && latestToolIndex != null) {
+    shrinkIndicesInOrder([latestToolIndex]);
   }
 
   return current;
