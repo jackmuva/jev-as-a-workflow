@@ -78,11 +78,21 @@ const generateRequiredToolCall = async ({
 const CREATE_PLAN_ACTION = 'CreatePlan';
 const ASK_QUESTION_ACTION = 'AskQuestion';
 
+type EvaluateMcpTool = Pick<McpTool, 'server' | 'name' | 'description' | 'inputSchema'>;
+
+const toolsForEvaluateState = (tools: McpTool[]): EvaluateMcpTool[] =>
+  tools.map(({ server, name, description, inputSchema }) => ({
+    server,
+    name,
+    description,
+    inputSchema,
+  }));
+
 const buildToolCriteria = (tools: McpTool[]) => {
   let criteria: {
     [action: string]: {
       description: string,
-      inputSchema?: JSONValue
+      inputSchema?: JSONValue,
     }
   } = Object.fromEntries(tools.map((t) => [mcpToolKey(t), {
     description: t.description ?? 'No description provided',
@@ -128,8 +138,8 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const initialEvaluation = await retryModelCall(() => evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
-      toolsAvailable: tools as JSONValue,
-      messages: toModelMessages(state.messages) as JSONValue
+      toolsAvailable: toolsForEvaluateState(tools) as JSONValue,
+      messages: toModelMessages(state.messages) as JSONValue,
     }],
     questions: {
       nextStep: {
@@ -173,7 +183,6 @@ export const actionSelectNode = async (
   const actionEvaluation = await retryModelCall(() => evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
-      toolsAvailable: availableTools as JSONValue,
       messages: toModelMessages(state.messages) as JSONValue,
     }],
     questions: {

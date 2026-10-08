@@ -71,6 +71,81 @@ const estimateMessageTokens = ({ message }: JevMessage): number =>
 export const estimateMessagesTokens = (messages: JevMessage[]): number =>
   messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
 
+const truncateToolResultParts = (message: ModelMessage, maxChars: number): ModelMessage => {
+  if (message.role === 'assistant' && typeof message.content === 'string') {
+    if (message.content.length <= maxChars) return message;
+    return { ...message, content: truncate(message.content, maxChars) };
+  }
+  if (message.role !== 'tool' && message.role !== 'assistant') return message;
+  if (!Array.isArray(message.content)) return message;
+
+  let changed = false;
+  const content = message.content.map((part) => {
+    if (part.type !== 'tool-result' || !('value' in part.output)) return part;
+    const value = part.output.value;
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    if (text.length <= maxChars) return part;
+    changed = true;
+    return { ...part, output: { ...part.output, value: truncate(text, maxChars) } };
+  });
+
+  return changed ? { ...message, content } as ModelMessage : message;
+};
+
+const TOOL_TRUNCATE_STEPS = [12_000, 8_000, 4_000, 2_000, 800, 400] as const;
+
+const getToolMessageIndicesOldestFirst = (messages: JevMessage[]): number[] =>
+  messages
+    .map((entry, index) => (entry.message.role === 'tool' ? index : -1))
+    .filter((index) => index >= 0);
+
+const applyToolResultCharLimits = (
+  messages: JevMessage[],
+  limitsByIndex: Map<number, number>,
+): JevMessage[] =>
+  messages.map((entry, index) => {
+    const limit = limitsByIndex.get(index);
+    if (limit == null) return entry;
+    const message = truncateToolResultParts(entry.message, limit);
+    return message === entry.message ? entry : { ...entry, message };
+  });
+
+/** Shrink retained tool payloads when summarization cannot run (everything is in the keep window). */
+export const shrinkMessagesToTokenBudget = (
+  messages: JevMessage[],
+  tokenLimit: number,
+): JevMessage[] => {
+  if (estimateMessagesTokens(messages) <= tokenLimit) return messages;
+
+  const toolIndices = getToolMessageIndicesOldestFirst(messages);
+  if (toolIndices.length === 0) return messages;
+
+  const limitsByIndex = new Map<number, number>();
+  let current = messages;
+
+  const shrinkIndicesInOrder = (indices: number[]) => {
+    for (const step of TOOL_TRUNCATE_STEPS) {
+      if (estimateMessagesTokens(current) <= tokenLimit) return;
+      for (const index of indices) {
+        if (estimateMessagesTokens(current) <= tokenLimit) return;
+        const previous = limitsByIndex.get(index) ?? Number.POSITIVE_INFINITY;
+        limitsByIndex.set(index, Math.min(previous, step));
+        current = applyToolResultCharLimits(current, limitsByIndex);
+      }
+    }
+  };
+
+  const olderToolIndices = toolIndices.slice(0, -1);
+  const latestToolIndex = toolIndices.at(-1);
+
+  shrinkIndicesInOrder(olderToolIndices);
+  if (estimateMessagesTokens(current) > tokenLimit && latestToolIndex != null) {
+    shrinkIndicesInOrder([latestToolIndex]);
+  }
+
+  return current;
+};
+
 const getRetainedIndices = (
   messages: JevMessage[],
   keepAssistantCount: number,
@@ -117,30 +192,35 @@ export const compactMessages = async (
   const retained = getRetainedIndices(messages, keepAssistantMessages);
   const toSummarize = messages.filter((_, index) => !retained.has(index));
 
-  if (toSummarize.length === 0) return messages;
+  let result = messages;
 
-  const transcript = toSummarize.map(({ message }) => messageToText(message, { truncateToolResults: 2_000 }))
-    .join('\n\n');
-  const summaryResult = await generateText({
-    model: LLM_MODEL,
-    instructions:
-      `Summarize the following conversation history concisely. Preserve the user's goal, key decisions, important tool results, and progress made. Omit redundant details.\n\n` +
-      `Important: Keep the summary compact — it must be significantly shorter than the compaction context window of ${contextWindow} tokens. That window is used at a threshold of ${Math.round(tokenThreshold * 100)}% (i.e. a budget of ${tokenLimit} tokens), and the summary is re-fed into the model alongside other retained messages. So it must comfortably fit within that limit. Optimize for a tight, information-dense summary — favor the user's goal, key decisions, important tool results, and progress over verbatim detail.`,
-    prompt: transcript,
-  });
-  recordLlmUsage(summaryResult);
-  const { text: summary } = summaryResult;
+  if (toSummarize.length > 0) {
+    const transcript = toSummarize.map(({ message }) => messageToText(message, { truncateToolResults: 2_000 }))
+      .join('\n\n');
+    const summaryResult = await generateText({
+      model: LLM_MODEL,
+      instructions:
+        `Summarize the following conversation history concisely. Preserve the user's goal, key decisions, important tool results, and progress made. Omit redundant details.\n\n` +
+        `Important: Keep the summary compact — it must be significantly shorter than the compaction context window of ${contextWindow} tokens. That window is used at a threshold of ${Math.round(tokenThreshold * 100)}% (i.e. a budget of ${tokenLimit} tokens), and the summary is re-fed into the model alongside other retained messages. So it must comfortably fit within that limit. Optimize for a tight, information-dense summary — favor the user's goal, key decisions, important tool results, and progress over verbatim detail.`,
+      prompt: transcript,
+    });
+    recordLlmUsage(summaryResult);
+    const { text: summary } = summaryResult;
 
-  const summaryMessage = jevMessage(
-    { role: 'assistant', content: summary },
-    undefined,
-    'summary',
-  );
+    const summaryMessage = jevMessage(
+      { role: 'assistant', content: summary },
+      undefined,
+      'summary',
+    );
 
-  const kept = messages.filter((_, index) => retained.has(index));
-  const systemMessages = kept.filter(({ message }) => message.role === 'system');
-  const otherKept = kept.filter(({ message }) => message.role !== 'system');
-  return [...systemMessages, summaryMessage, ...otherKept];
+    const kept = messages.filter((_, index) => retained.has(index));
+    const systemMessages = kept.filter(({ message }) => message.role === 'system');
+    const otherKept = kept.filter(({ message }) => message.role !== 'system');
+    result = [...systemMessages, summaryMessage, ...otherKept];
+  }
+
+  const shrunk = shrinkMessagesToTokenBudget(result, tokenLimit);
+  return shrunk === result && result === messages ? messages : shrunk;
 };
 
 export const compactionHook = async (state: AgentState, force: boolean = false): Promise<AgentState> => {
