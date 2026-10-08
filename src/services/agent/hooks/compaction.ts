@@ -105,27 +105,20 @@ const getRetainedIndices = (
 
 export const compactMessages = async (
   messages: JevMessage[],
+  force: boolean = false,
   options: CompactionOptions = {},
 ): Promise<JevMessage[]> => {
-  const { keepAssistantMessages, contextWindow, tokenThreshold } = {
-    ...DEFAULT_OPTIONS,
-    ...options,
-  };
-
+  const { keepAssistantMessages, contextWindow, tokenThreshold } = { ...DEFAULT_OPTIONS, ...options, };
   const tokenLimit = contextWindow * tokenThreshold;
-  if (estimateMessagesTokens(messages) < tokenLimit) {
-    return messages;
-  }
+
+  if (estimateMessagesTokens(messages) < tokenLimit && !force) return messages;
 
   const retained = getRetainedIndices(messages, keepAssistantMessages);
   const toSummarize = messages.filter((_, index) => !retained.has(index));
 
-  if (toSummarize.length === 0) {
-    return messages;
-  }
+  if (toSummarize.length === 0) return messages;
 
-  const transcript = toSummarize
-    .map(({ message }) => messageToText(message, { truncateToolResults: 2_000 }))
+  const transcript = toSummarize.map(({ message }) => messageToText(message, { truncateToolResults: 2_000 }))
     .join('\n\n');
   const { text: summary } = await generateText({
     model: LLM_MODEL,
@@ -146,8 +139,7 @@ export const compactMessages = async (
   return [...systemMessages, summaryMessage, ...otherKept];
 };
 
-/** Compacts agent message history after a tool call. */
-export const compactionHook = async (state: AgentState): Promise<AgentState> => {
-  const messages = await compactMessages(state.messages);
+export const compactionHook = async (state: AgentState, force: boolean = false): Promise<AgentState> => {
+  const messages = await compactMessages(state.messages, force);
   return messages === state.messages ? state : { ...state, messages };
 };

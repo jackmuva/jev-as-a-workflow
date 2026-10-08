@@ -11,99 +11,98 @@ export type JevLoopOptions = {
   signal?: AbortSignal;
 };
 
-const stopIfAborted = (
-  signal: AbortSignal | undefined,
-  state: AgentState,
-  sync: (state: AgentState) => AgentState,
-): boolean => {
-  if (!signal?.aborted) return false;
-  sync({
-    state: "END",
-    messages: [
-      ...state.messages,
-      jevMessage({ role: "assistant", content: "Run stopped." }),
-    ],
-  });
-  return true;
-};
-
 export const jevLoop = async (
   messages: JevMessage[],
   callback: (messages: JevMessage[]) => void,
   options?: JevLoopOptions,
 ) => {
   const signal = options?.signal;
-  const sync = (state: AgentState) => {
-    callback(state.messages);
-    return state;
-  };
-
-  let i = 0;
   let state: AgentState = { state: 'START', messages: [...messages] };
 
-  if (findPendingAskQuestion(state.messages)) {
-    return;
-  }
+  const sync = (next: AgentState) => {
+    callback(next.messages);
+    return next;
+  };
 
-  state = sync(await compactionHook(state));
-  if (stopIfAborted(signal, state, sync)) return;
+  const stopIfAborted = (): boolean => {
+    if (!signal?.aborted) return false;
+    state = sync({
+      state: 'END',
+      messages: [
+        ...state.messages,
+        jevMessage({ role: 'assistant', content: 'Run stopped.' }),
+      ],
+    });
+    return true;
+  };
 
-  state = sync(await initialNode(state));
-  if (stopIfAborted(signal, state, sync)) return;
-
-  state = sync(await compactionHook(state));
-  if (stopIfAborted(signal, state, sync)) return;
-
-  if (state.state === "END") {
-    return;
-  }
-  if (state.state === "PLAN") {
-    state = sync(await createPlanNode(state));
-    if (stopIfAborted(signal, state, sync)) return;
-  } else if (state.state === "DISCOVERY") {
-    state = sync(await clarifyTaskNode(state));
-    if (stopIfAborted(signal, state, sync)) return;
-    if (findPendingAskQuestion(state.messages)) {
-      return;
-    }
-  }
-
-  let checkpoints: Array<{ state: AgentState, options: string[] }> = [];
-  while (i < MAX_ITERATIONS) {
-    if (stopIfAborted(signal, state, sync)) return;
-
+  const runNode = async (node: (state: AgentState) => Promise<AgentState>): Promise<boolean> => {
     state = sync(await compactionHook(state));
-    if (stopIfAborted(signal, state, sync)) return;
+    if (stopIfAborted()) return false;
 
-    if (state.state !== "REWIND" && !state.selectedTool) {
-      const { state: newState, options } = await actionSelectNode(state);
-      state = sync(newState);
-      if (stopIfAborted(signal, state, sync)) return;
-      if (options.length > 0) checkpoints.push({ state: { ...newState }, options });
-    }
-    if (state.state === "EXECUTE") {
-      state = sync(await runToolNode(state));
-      if (stopIfAborted(signal, state, sync)) return;
-      if (state.state === "DISCOVERY" || findPendingAskQuestion(state.messages)) {
-        return;
-      }
-      state = { ...state, selectedTool: undefined, probabilities: undefined };
-      state = sync(await compactionHook(state));
-      if (stopIfAborted(signal, state, sync)) return;
+    try {
+      state = sync(await node(state));
+    } catch {
+      if (stopIfAborted()) return false;
+      state = sync(await compactionHook(state, true));
+      if (stopIfAborted()) return false;
+      state = sync(await node(state));
     }
 
-    if (state.state === "END") {
+    if (stopIfAborted()) return false;
+    state = sync(await compactionHook(state));
+    if (stopIfAborted()) return false;
+    return true;
+  };
+
+  if (findPendingAskQuestion(state.messages)) return;
+  if (!(await runNode(initialNode))) return;
+  if (state.state === 'END') return;
+
+  if (state.state === 'PLAN') {
+    if (!(await runNode(createPlanNode))) return;
+  } else if (state.state === 'DISCOVERY') {
+    if (!(await runNode(clarifyTaskNode))) return;
+    if (findPendingAskQuestion(state.messages)) return;
+  }
+
+  let checkpoints: Array<{ state: AgentState; options: string[] }> = [];
+  let i = 0;
+  while (i < MAX_ITERATIONS) {
+    if (stopIfAborted()) return;
+
+    if (state.state !== 'REWIND' && !state.selectedTool) {
+      let actionSelectCheckpoint: { state: AgentState; options: string[] } | null = null;
+      if (!(await runNode(async (s) => {
+        const { state: newState, options } = await actionSelectNode(s);
+        if (options.length > 0 && newState.state === 'EXECUTE') {
+          actionSelectCheckpoint = { state: { ...newState }, options };
+        }
+        return newState;
+      }))) return;
+      if (actionSelectCheckpoint) checkpoints.push(actionSelectCheckpoint);
+    }
+
+    const runningTool = state.state === 'EXECUTE';
+    if (runningTool && !(await runNode(runToolNode))) return;
+    if (runningTool) {
+      if (state.state === 'DISCOVERY' || findPendingAskQuestion(state.messages)) return;
+      state = sync({ ...state, selectedTool: undefined, probabilities: undefined });
+    }
+
+    if (state.state === 'END') {
       return;
-    } else if (state.state === "REWIND") {
+    }
+    if (state.state === 'REWIND') {
       const { state: rewoundState, checkpoints: rewoundCheckpoints } = rewindState(checkpoints, state);
       checkpoints = rewoundCheckpoints;
       state = sync(rewoundState);
       if (checkpoints.length === 0) {
         state = sync({
-          state: "END",
+          state: 'END',
           messages: [...state.messages, jevMessage({
-            role: "assistant",
-            content: "Unable to complete the task with given tools",
+            role: 'assistant',
+            content: 'Unable to complete the task with given tools',
           })],
         });
         return;
@@ -113,10 +112,10 @@ export const jevLoop = async (
   }
 
   sync({
-    state: "END",
+    state: 'END',
     messages: [...state.messages, jevMessage({
-      role: "assistant",
-      content: "Unable to complete the task with given tools",
+      role: 'assistant',
+      content: 'Unable to complete the task with given tools',
     })],
   });
-}
+};
