@@ -36,13 +36,27 @@ const createHttpTransport = (config: HttpServerConfig, authProvider?: FileOAuthP
   });
 }
 
-type ContentPart = { type: string, text?: string, mimeType?: string, resource?: { uri?: string, text?: string } };
+type ContentPart = {
+  type: string,
+  text?: string,
+  uri?: string,
+  mimeType?: string,
+  resource?: { uri?: string, text?: string, blob?: string },
+};
 
 const formatContent = (parts: ContentPart[]): string =>
   parts.map((part) => {
     switch (part.type) {
       case 'text':
-        return part.resource?.text ?? `[resource: ${part.resource?.uri}]`;
+        return part.text ?? '';
+      case 'resource':
+        if (part.resource?.text !== undefined) return part.resource.text;
+        if (part.resource?.blob !== undefined) {
+          return `[resource blob: ${part.resource.uri ?? 'unknown'}${part.mimeType ? ` (${part.mimeType})` : ''}]`;
+        }
+        return `[resource: ${part.resource?.uri ?? 'unknown'}]`;
+      case 'resource_link':
+        return `[resource link: ${part.uri ?? 'unknown'}]`;
       default:
         return `[${part.type}${part.mimeType ? `: ${part.mimeType}` : ''}]`;
     }
