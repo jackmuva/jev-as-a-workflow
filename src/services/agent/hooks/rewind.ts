@@ -7,15 +7,16 @@ export const rewindState = (checkpoints: Array<{ state: AgentState, options: str
     let lastCheckpoint = newCheckpoints.at(-1);
     if (lastCheckpoint!.options.length > 0) {
       lastCheckpoint!.options.shift();
-      newState = {
-        ...lastCheckpoint!.state,
-        selectedTool: lastCheckpoint!.options[0],
-        state: 'EXECUTE',
-      };
-      return { state: newState, checkpoints: newCheckpoints }
-    } else {
-      newCheckpoints.pop();
+      if (lastCheckpoint!.options.length > 0) {
+        newState = {
+          ...lastCheckpoint!.state,
+          selectedTool: lastCheckpoint!.options[0],
+          state: 'EXECUTE',
+        };
+        return { state: newState, checkpoints: newCheckpoints };
+      }
     }
+    newCheckpoints.pop();
   }
   return { state: newState, checkpoints: newCheckpoints }
 }

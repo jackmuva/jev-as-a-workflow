@@ -17,4 +17,35 @@ describe("rewindState", () => {
     expect(result.checkpoints).toHaveLength(2)
     expect(result.checkpoints.at(-1)?.options).toEqual(["default/d"])
   })
+
+  test("uses the previous checkpoint when the latest choice list is exhausted", () => {
+    const baseState: AgentState = { state: "REWIND", messages: [] }
+    const earlierMessages = [{ message: { role: "user" as const, content: "earlier" } }]
+    const checkpoints = [
+      {
+        state: {
+          state: "EXECUTE" as const,
+          messages: earlierMessages,
+          selectedTool: "default/a",
+        },
+        options: ["default/b", "default/c"],
+      },
+      {
+        state: {
+          state: "EXECUTE" as const,
+          messages: [{ message: { role: "user" as const, content: "later" } }],
+          selectedTool: "default/only",
+        },
+        options: ["default/only"],
+      },
+    ]
+
+    const result = rewindState(checkpoints, baseState)
+
+    expect(result.state.state).toBe("EXECUTE")
+    expect(result.state.selectedTool).toBe("default/c")
+    expect(result.state.messages).toEqual(earlierMessages)
+    expect(result.checkpoints).toHaveLength(1)
+    expect(result.checkpoints[0]?.options).toEqual(["default/c"])
+  })
 })
