@@ -124,7 +124,8 @@ export const compactMessages = async (
   const summaryResult = await generateText({
     model: LLM_MODEL,
     instructions:
-      'Summarize the following conversation history concisely. Preserve the user\'s goal, key decisions, important tool results, and progress made. Omit redundant details.',
+      `Summarize the following conversation history concisely. Preserve the user's goal, key decisions, important tool results, and progress made. Omit redundant details.\n\n` +
+      `Important: Keep the summary compact — it must be significantly shorter than the compaction context window of ${contextWindow} tokens. That window is used at a threshold of ${Math.round(tokenThreshold * 100)}% (i.e. a budget of ${tokenLimit} tokens), and the summary is re-fed into the model alongside other retained messages. So it must comfortably fit within that limit. Optimize for a tight, information-dense summary — favor the user's goal, key decisions, important tool results, and progress over verbatim detail.`,
     prompt: transcript,
   });
   recordLlmUsage(summaryResult);
