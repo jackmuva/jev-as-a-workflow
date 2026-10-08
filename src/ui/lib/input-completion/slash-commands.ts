@@ -1,5 +1,5 @@
 import type { CompletionItem, SlashCommandDefinition } from "../../../models/ui"
-import { fuzzyContains, fuzzyScore } from "./fuzzy-match"
+import { filterByFuzzyName } from "./fuzzy-match"
 
 export const SLASH_COMMANDS: SlashCommandDefinition[] = [
   {
@@ -37,22 +37,9 @@ export type SlashCommandHandlers = SlashCommandActions & {
 }
 
 export const getSlashCompletions = (query: string): CompletionItem[] => {
-  let matches = SLASH_COMMANDS.filter((command) => fuzzyContains(command.name, query))
-  const hasPrefixMatch = matches.some((command) => fuzzyScore(command.name, query) === 0)
-  if (hasPrefixMatch) {
-    matches = matches.filter((command) => fuzzyScore(command.name, query) === 0)
-  } else {
-    const hasSubstringMatch = matches.some((command) => fuzzyScore(command.name, query) === 1)
-    if (hasSubstringMatch) {
-      matches = matches.filter((command) => fuzzyScore(command.name, query) === 1)
-    }
-  }
-  matches.sort((left, right) => {
-    const scoreA = fuzzyScore(left.name, query)
-    const scoreB = fuzzyScore(right.name, query)
-    if (scoreA !== scoreB) return scoreA - scoreB
-    return left.name.localeCompare(right.name)
-  })
+  const matches = query.length === 0
+    ? [...SLASH_COMMANDS].sort((left, right) => left.name.localeCompare(right.name))
+    : filterByFuzzyName(SLASH_COMMANDS, query)
 
   return matches.map((command) => ({
     id: `slash:${command.name}`,

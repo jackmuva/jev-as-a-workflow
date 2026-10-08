@@ -5,6 +5,8 @@ import type {
   CapabilityKind,
   CapabilitySelection,
 } from "../../../models/agent"
+import { getFilterKeyAction } from "../../lib/dialog-filter-key"
+import { filterByFuzzyName } from "../../lib/input-completion/fuzzy-match"
 import { AGENT_BORDER_COLOR } from "../primitives/MessageFrame"
 
 const DIALOG_WIDTH = 64
@@ -12,10 +14,11 @@ const DIALOG_PADDING = 2
 const DIALOG_BORDER = 2
 const MAX_VISIBLE_ROWS = 14
 const INSTRUCTION_SEGMENTS = [
+  "Type to filter",
   "←/→ tabs",
   "↑/↓ navigate",
   "Space toggle",
-  "A select all",
+  "Ctrl+A select all",
   "Enter apply",
   "Esc cancel",
 ]
@@ -96,31 +99,43 @@ export const CapabilitySelectionDialog = ({
   const [enabled, setEnabled] = useState(() => toSets(initialSelection))
   const [tabIndex, setTabIndex] = useState(0)
   const [cursor, setCursor] = useState(0)
+  const [filterQuery, setFilterQuery] = useState("")
 
   const activeTab = visibleTabs[tabIndex] ?? visibleTabs[0]
   const activeKind = activeTab?.kind ?? "skills"
   const activeItems = catalog[activeKind]
+  const filteredItems = useMemo(
+    () => filterByFuzzyName(activeItems, filterQuery),
+    [activeItems, filterQuery],
+  )
 
   const rows = useMemo<Row[]>(() => {
     if (activeItems.length === 0) return []
+    if (filteredItems.length === 0) return []
     return [
       { type: "selectAll" },
-      ...activeItems.map((entry) => ({
+      ...filteredItems.map((entry) => ({
         type: "item" as const,
         name: entry.name,
         description: entry.description,
       })),
     ]
-  }, [activeItems])
+  }, [activeItems.length, filteredItems])
 
   const enabledInTab = activeItems.filter((entry) => enabled[activeKind].has(entry.name)).length
-  const allSelectedInTab = activeItems.length > 0 && enabledInTab === activeItems.length
+  const enabledInFilter = filteredItems.filter((entry) => enabled[activeKind].has(entry.name)).length
+  const allSelectedInTab =
+    filteredItems.length > 0 && enabledInFilter === filteredItems.length
 
   const setAllInTab = (value: boolean) => {
-    setEnabled((previous) => ({
-      ...previous,
-      [activeKind]: new Set(value ? activeItems.map((entry) => entry.name) : []),
-    }))
+    setEnabled((previous) => {
+      const next = new Set(previous[activeKind])
+      for (const entry of filteredItems) {
+        if (value) next.add(entry.name)
+        else next.delete(entry.name)
+      }
+      return { ...previous, [activeKind]: next }
+    })
   }
 
   const toggleRow = (row: Row | undefined) => {
@@ -140,6 +155,16 @@ export const CapabilitySelectionDialog = ({
   const goToTab = (index: number) => {
     const next = ((index % visibleTabs.length) + visibleTabs.length) % visibleTabs.length
     setTabIndex(next)
+    setFilterQuery("")
+    setCursor(0)
+  }
+
+  const applyFilterKey = (action: NonNullable<ReturnType<typeof getFilterKeyAction>>) => {
+    if (action.type === "backspace") {
+      setFilterQuery((query) => query.slice(0, -1))
+    } else {
+      setFilterQuery((query) => query + action.char)
+    }
     setCursor(0)
   }
 
@@ -168,7 +193,25 @@ export const CapabilitySelectionDialog = ({
       return
     }
 
-    if (rows.length === 0) return
+    const filterKey = getFilterKeyAction(key)
+    if (filterKey) {
+      applyFilterKey(filterKey)
+      return
+    }
+
+    if (rows.length === 0) {
+      if (key.name === "escape") {
+        if (filterQuery.length > 0) {
+          setFilterQuery("")
+          setCursor(0)
+        } else {
+          onDismiss()
+        }
+      } else if (key.name === "return" || key.name === "kpenter") {
+        onConfirm(buildSelection())
+      }
+      return
+    }
 
     if (key.name === "up") {
       setCursor((index) => (index - 1 + rows.length) % rows.length)
@@ -176,10 +219,15 @@ export const CapabilitySelectionDialog = ({
       setCursor((index) => (index + 1) % rows.length)
     } else if (key.name === "space") {
       toggleRow(rows[cursor])
-    } else if (key.name === "a") {
+    } else if (key.ctrl && key.name === "a") {
       setAllInTab(!allSelectedInTab)
     } else if (key.name === "escape") {
-      onDismiss()
+      if (filterQuery.length > 0) {
+        setFilterQuery("")
+        setCursor(0)
+      } else {
+        onDismiss()
+      }
     } else if (key.name === "return" || key.name === "kpenter") {
       onConfirm(buildSelection())
     }
@@ -199,11 +247,12 @@ export const CapabilitySelectionDialog = ({
   const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(28, terminalWidth - 4))
   const innerWidth = dialogWidth - DIALOG_BORDER - DIALOG_PADDING
   const instructionLines = layoutInstructions(innerWidth)
-  // title + totals + (margin + tabs) + (margin + tab totals)? + (margin + instructions) + list margin
+  // title + totals + (margin + tabs) + (margin + tab totals)? + (margin + filter)? + (margin + instructions) + list margin
   const headerLines =
     1
     + 1
     + 2
+    + (activeItems.length > 0 ? 2 : 0)
     + (activeItems.length > 0 ? 2 : 0)
     + 1 + instructionLines.length
     + 1
@@ -273,7 +322,18 @@ export const CapabilitySelectionDialog = ({
 
         {activeItems.length > 0 && (
           <text fg={MUTED_FG} flexShrink={0} marginTop={1}>
-            {`${enabledInTab} of ${activeItems.length} enabled in ${activeTab?.label ?? "tab"}`}
+            {filterQuery.length > 0
+              ? `${enabledInFilter} of ${filteredItems.length} shown · ${enabledInTab} of ${activeItems.length} enabled in ${activeTab?.label ?? "tab"}`
+              : `${enabledInTab} of ${activeItems.length} enabled in ${activeTab?.label ?? "tab"}`}
+          </text>
+        )}
+
+        {activeItems.length > 0 && (
+          <text fg={filterQuery.length > 0 ? TEXT_FG : MUTED_FG} flexShrink={0} marginTop={1}>
+            {truncate(
+              filterQuery.length > 0 ? `Filter: ${filterQuery}` : "Filter: (type to search)",
+              innerWidth,
+            )}
           </text>
         )}
 
@@ -295,7 +355,12 @@ export const CapabilitySelectionDialog = ({
         >
           {rows.length === 0 ? (
             <text fg={MUTED_FG} flexShrink={0} wrapMode="none">
-              {truncate(EMPTY_MESSAGES[activeKind], innerWidth)}
+              {truncate(
+                activeItems.length === 0
+                  ? EMPTY_MESSAGES[activeKind]
+                  : "No matches for filter",
+                innerWidth,
+              )}
             </text>
           ) : (
             visibleRows.map((row, offset) => {

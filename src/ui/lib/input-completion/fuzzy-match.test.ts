@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { fuzzyContains, fuzzyScore } from "./fuzzy-match"
+import { filterByFuzzyName, fuzzyContains, fuzzyScore } from "./fuzzy-match"
 
 describe("fuzzyContains", () => {
   test("matches exact substring", () => {
@@ -39,5 +39,25 @@ describe("fuzzyScore", () => {
 
   test("non-matches score 3", () => {
     expect(fuzzyScore("package.json", "zzz")).toBe(3)
+  })
+})
+
+describe("filterByFuzzyName", () => {
+  const items = [
+    { name: "configure", description: "a" },
+    { name: "clear", description: "b" },
+    { name: "github-mcp", description: "c" },
+  ]
+
+  test("returns all items for empty query", () => {
+    expect(filterByFuzzyName(items, "")).toEqual(items)
+  })
+
+  test("prefers prefix matches like slash command filtering", () => {
+    expect(filterByFuzzyName(items, "c").map((item) => item.name)).toEqual(["clear", "configure"])
+  })
+
+  test("filters fuzzy and substring matches", () => {
+    expect(filterByFuzzyName(items, "gh").map((item) => item.name)).toEqual(["github-mcp"])
   })
 })
