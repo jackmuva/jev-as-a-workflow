@@ -4,7 +4,7 @@ import {
   callTitle,
   filetypeFromPath,
   readStringField,
-} from "../../lib/format/utils"
+} from "../../lib/format/message"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { DefaultToolView } from "../primitives/DefaultToolView"
 import { DiffToolView } from "../primitives/DiffToolView"

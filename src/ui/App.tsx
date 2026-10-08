@@ -14,7 +14,7 @@ import { generateWorkflowFromSession, WorkflowGenerationError } from "../service
 import { WorkflowStore } from "../db/workflow-store"
 import type { WorkflowRecord } from "../models/workflow"
 import { useSessionPersistence } from "./hooks/useSessionPersistence"
-import { buildToolCallInputMap } from "./lib/format/format"
+import { buildToolCallInputMap } from "./lib/format/message"
 import { CompletionOverlayDialog } from "./components/input/CompletionOverlayDialog"
 import { CapabilitySelectionDialog } from "./components/session/CapabilitySelectionDialog"
 import { SessionSelectionDialog } from "./components/session/SessionSelectionDialog"

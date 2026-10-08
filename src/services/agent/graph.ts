@@ -9,7 +9,7 @@ import {
   type ToolChoice,
 } from 'ai';
 import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
-import { recordLlmUsage } from '../llm/session-usage';
+import { recordLlmUsage } from './hooks/session-usage';
 import type { AgentState, JevMessage } from '../../models/agent';
 import type { McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';

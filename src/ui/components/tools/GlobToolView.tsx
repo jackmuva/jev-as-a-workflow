@@ -1,5 +1,5 @@
 import type { ToolViewProps } from "../../../models/ui"
-import { callTitle, readStringField } from "../../lib/format/utils"
+import { callTitle, readStringField } from "../../lib/format/message"
 import { ListToolView } from "../primitives/ListToolView"
 import { MessageFrame } from "../primitives/MessageFrame"
 

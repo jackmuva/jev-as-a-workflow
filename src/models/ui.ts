@@ -1,4 +1,4 @@
-import type { ToolResultPart } from "../ui/lib/format/format"
+import type { ToolResultPart } from "../ui/lib/format/message"
 
 export type ToolRenderContext = {
   toolName: string

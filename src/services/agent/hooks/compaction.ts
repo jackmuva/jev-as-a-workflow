@@ -4,7 +4,7 @@ import {
   COMPACTION_TOKEN_THRESHOLD,
   LLM_MODEL,
 } from '../../../constants';
-import { recordLlmUsage } from '../../llm/session-usage';
+import { recordLlmUsage } from './session-usage';
 import type { AgentState, JevMessage } from '../../../models/agent';
 import { jevMessage } from '../utils/jev-message';
 

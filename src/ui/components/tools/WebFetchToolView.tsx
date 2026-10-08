@@ -1,5 +1,5 @@
 import type { ToolViewProps } from "../../../models/ui"
-import { callTitle, looksLikeMarkdown, readStringField } from "../../lib/format/utils"
+import { callTitle, looksLikeMarkdown, readStringField } from "../../lib/format/message"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
 import { MessageFrame } from "../primitives/MessageFrame"

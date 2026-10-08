@@ -8,7 +8,7 @@ import {
   isToolResultError,
   type ToolCallPart,
   type ToolResultPart,
-} from "../../lib/format/format"
+} from "../../lib/format/message"
 import { ChoiceProbabilities } from "./ChoiceProbabilities"
 import { AGENT_BORDER_COLOR, MessageFrame, MessageFrameKindContext } from "./MessageFrame"
 

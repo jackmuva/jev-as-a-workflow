@@ -6,7 +6,7 @@ import {
   readNumberField,
   readStringField,
   callTitle,
-} from "../../lib/format/utils"
+} from "../../lib/format/message"
 import { CodeToolView } from "../primitives/CodeToolView"
 import { ListToolView } from "../primitives/ListToolView"
 import { MessageFrame } from "../primitives/MessageFrame"

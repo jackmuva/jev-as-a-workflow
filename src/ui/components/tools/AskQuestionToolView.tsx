@@ -1,5 +1,5 @@
 import type { ToolViewProps } from "../../../models/ui"
-import { asRecord } from "../../lib/format/utils"
+import { asRecord } from "../../lib/format/message"
 import { USER_INPUT_BORDER_COLOR } from "../primitives/MessageFrame"
 import { WorkflowEdge } from "../primitives/WorkflowEdge"
 

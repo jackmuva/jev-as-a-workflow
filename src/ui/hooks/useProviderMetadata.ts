@@ -4,7 +4,7 @@ import {
   getSessionUsageState,
   resetSessionUsage,
   subscribeSessionUsage,
-} from '../../services/llm/session-usage';
+} from '../../services/agent/hooks/session-usage';
 
 export const useProviderMetadata = (sessionId: string) => {
   const [state, setState] = useState(getSessionUsageState);

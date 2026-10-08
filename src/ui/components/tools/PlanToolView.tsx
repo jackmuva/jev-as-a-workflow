@@ -4,7 +4,7 @@ import {
   concatenateSubtitle,
   parsePlanSteps,
   readStringField,
-} from "../../lib/format/utils"
+} from "../../lib/format/message"
 import { ListToolView } from "../primitives/ListToolView"
 import { MarkdownToolView } from "../primitives/MarkdownToolView"
 import { MessageFrame } from "../primitives/MessageFrame"
