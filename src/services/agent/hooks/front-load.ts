@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'path';
+import { join, resolve } from 'path';
 import { JEV_HOME } from '../../../constants';
 import { isCapabilityEnabled } from '../capabilities';
 
@@ -18,6 +18,7 @@ export const getSkillsDirs = (cwd = process.cwd()): string[] => [
   join(resolve(cwd), 'skills'),
   join(JEV_HOME, 'skills'),
   join(homedir(), '.cursor', 'skills-cursor'),
+  join(homedir(), '.claude', 'skills'),
 ];
 
 let skillRegistry = new Map<string, SkillSummary>();
