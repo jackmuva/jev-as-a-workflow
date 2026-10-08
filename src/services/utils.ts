@@ -1,0 +1,27 @@
+import Bottleneck from "bottleneck";
+
+export const modelRateLimiter = new Bottleneck({
+  minTime: 100,
+  maxConcurrent: 5,
+  highWater: 1_000,
+  strategy: Bottleneck.strategy.LEAK,
+});
+
+export async function retryModelCall<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
+  if (attempts < 1) throw new Error("scheduleLlmTask: attempts must be >= 1");
+
+  let lastError: unknown;
+
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await modelRateLimiter.schedule(fn);
+    } catch (err) {
+      lastError = err;
+      const isLastAttempt = i === attempts - 1;
+      if (isLastAttempt) break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  throw lastError;
+}

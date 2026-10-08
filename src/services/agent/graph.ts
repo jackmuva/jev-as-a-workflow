@@ -25,6 +25,7 @@ import { listSkills } from './hooks/front-load';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 import { jevMessage, toModelMessages } from './utils/jev-message';
+import { retryModelCall } from '../utils';
 
 const parseToolKey = (key: string): { server: string, name: string } => {
   const slash = key.indexOf('/');
@@ -53,13 +54,13 @@ const generateRequiredToolCall = async ({
 
     try {
       const prompt = preparePrompt(instructions, messages);
-      const result = await generateText({
+      const result = await retryModelCall(() => generateText({
         model: LLM_MODEL,
         instructions: prompt.instructions,
         messages: prompt.messages,
         tools,
         toolChoice,
-      });
+      }));
       recordLlmUsage(result);
 
       const toolCall = result.toolCalls.find(
@@ -124,7 +125,7 @@ const formatToolList = (tools: McpTool[]) => tools
 
 export const initialNode = async (state: AgentState): Promise<AgentState> => {
   const tools = await listAllTools();
-  const initialEvaluation = await evaluate({
+  const initialEvaluation = await retryModelCall(() => evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: tools as JSONValue,
@@ -142,7 +143,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
         }
       }
     },
-  });
+  }));
   recordLlmUsage(initialEvaluation);
 
   const { answers } = initialEvaluation;
@@ -169,7 +170,7 @@ export const actionSelectNode = async (
   const availableTools = await listAllTools();
   const criteria = buildToolCriteria(availableTools);
 
-  const actionEvaluation = await evaluate({
+  const actionEvaluation = await retryModelCall(() => evaluate({
     model: SYSTEM_ONE_MODEL,
     state: [{
       toolsAvailable: availableTools as JSONValue,
@@ -182,7 +183,7 @@ export const actionSelectNode = async (
         criteria,
       },
     },
-  });
+  }));
   recordLlmUsage(actionEvaluation);
 
   const { answers } = actionEvaluation;

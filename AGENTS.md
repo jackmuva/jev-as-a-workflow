@@ -169,6 +169,9 @@ src/
 
 - **TypeScript** throughout; run `bun run lint` (`tsc --noEmit`) before finishing.
 - Prefer **explicit types** over `any` where feasible.
+- Use **one line `if` statements** where they fit on a single line.
+- **Use existing files** when possible over creating new ones.
+- Prefer **inline logic** over creating new helper methods.
 - Keep agent/model type definitions in `src/models/` (e.g. `src/models/agent.ts`,
   `src/models/config.ts`) rather than re-declaring them in `src/services/`.
 - Keep business logic in `src/services/`; keep UI components in `src/ui/`.

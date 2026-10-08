@@ -27,6 +27,7 @@
     "@opentui/react": "^0.5.12",
     "@types/react": "^19.3.0",
     "ai": "^7.0.116",
+    "bottleneck": "^2.19.5",
     "react": "^19.3.0"
   },
   "engines": {
