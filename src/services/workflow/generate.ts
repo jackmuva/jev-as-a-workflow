@@ -1,4 +1,11 @@
-import { generateText, jsonSchema, NoObjectGeneratedError, Output } from 'ai';
+import {
+  APICallError,
+  generateText,
+  jsonSchema,
+  NoObjectGeneratedError,
+  Output,
+  UnsupportedFunctionalityError,
+} from 'ai';
 import { recordLlmUsage } from '../agent/hooks/session-usage';
 import { LLM_MODEL } from '../../constants';
 import type { JevMessage } from '../../models/agent';
@@ -78,6 +85,62 @@ const messageToSummaryLine = ({ message }: JevMessage): string | null => {
   return null;
 };
 
+const JSON_PROMPT_SUFFIX = `
+
+Return only a single JSON object (no markdown fences or surrounding prose) with:
+- title: string (short workflow name, max 80 chars)
+- goal: string (one sentence outcome)
+- steps: array of { intent: string, action: string, toolParameters?: object with string values }`;
+
+export const isStructuredOutputUnsupported = (error: unknown): boolean => {
+  if (UnsupportedFunctionalityError.isInstance(error)) return true;
+  if (NoObjectGeneratedError.isInstance(error)) return true;
+  if (APICallError.isInstance(error)) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes('output format')
+      || message.includes('structured output')
+      || message.includes('response_format')
+      || message.includes('json schema')
+    );
+  }
+  return false;
+};
+
+export const parseGeneratedWorkflowJson = (text: string): GeneratedWorkflow => {
+  const unfenced = text
+    .trim()
+    .replace(/^```(?:json)?\s*\n?/, '')
+    .replace(/\n?```\s*$/, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(unfenced);
+  } catch {
+    throw new WorkflowGenerationError('Could not parse generated workflow JSON');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new WorkflowGenerationError('Could not parse generated workflow JSON');
+  }
+
+  const record = parsed as Record<string, unknown>;
+  if (typeof record.title !== 'string' || typeof record.goal !== 'string' || !Array.isArray(record.steps)) {
+    throw new WorkflowGenerationError('Could not parse generated workflow JSON');
+  }
+
+  return parsed as GeneratedWorkflow;
+};
+
+const finalizeGeneratedWorkflow = (workflow: GeneratedWorkflow): GeneratedWorkflow => {
+  const normalized = normalizeGeneratedWorkflow(workflow);
+  if (!normalized.title || !normalized.goal || normalized.steps.length === 0) {
+    throw new WorkflowGenerationError('Generated workflow is missing required fields');
+  }
+  return normalized;
+};
+
 const normalizeGeneratedWorkflow = (workflow: GeneratedWorkflow): GeneratedWorkflow => {
   const steps: WorkflowStep[] = workflow.steps.map((step) => ({
     intent: step.intent.trim(),
@@ -143,19 +206,21 @@ ${stringifyToolCalls(toolCalls)}`;
       }),
     });
     recordLlmUsage(generation);
-    const { output } = generation;
-
-    const normalized = normalizeGeneratedWorkflow(output);
-    if (!normalized.title || !normalized.goal || normalized.steps.length === 0) {
-      throw new WorkflowGenerationError('Generated workflow is missing required fields');
-    }
-
-    return normalized;
+    return finalizeGeneratedWorkflow(generation.output);
   } catch (error) {
     if (error instanceof WorkflowGenerationError) throw error;
-    if (NoObjectGeneratedError.isInstance(error)) {
-      throw new WorkflowGenerationError('Could not parse generated workflow JSON');
-    }
-    throw error;
+    if (!isStructuredOutputUnsupported(error)) throw error;
+  }
+
+  try {
+    const generation = await generateText({
+      model: LLM_MODEL,
+      prompt: instructions + JSON_PROMPT_SUFFIX,
+    });
+    recordLlmUsage(generation);
+    return finalizeGeneratedWorkflow(parseGeneratedWorkflowJson(generation.text));
+  } catch (error) {
+    if (error instanceof WorkflowGenerationError) throw error;
+    throw new WorkflowGenerationError('Could not parse generated workflow JSON');
   }
 };
