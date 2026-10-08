@@ -37,7 +37,7 @@ const TABS: Array<{ kind: CapabilityKind, label: string }> = [
 ]
 
 const EMPTY_MESSAGES: Record<CapabilityKind, string> = {
-  mcpServers: "No MCP servers configured",
+  mcpServers: "No MCP tools available",
   skills: "No skills discovered",
   userTools: "No user tools found",
   agentsMd: "No AGENTS.md in this workspace",

@@ -35,6 +35,10 @@ export type McpTool = {
   inputSchema: Record<string, unknown>,
 }
 
+/** Stable id for MCP tools in capability selection and agent actions. */
+export const mcpToolKey = (tool: Pick<McpTool, 'server' | 'name'>) =>
+  `${tool.server}/${tool.name}`;
+
 export type McpToolResult = {
   server: string,
   tool: string,
