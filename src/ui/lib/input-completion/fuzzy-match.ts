@@ -27,3 +27,28 @@ export const fuzzyScore = (candidate: string, query: string): number => {
 
   return 3
 }
+
+export const filterByFuzzyName = <T extends { name: string }>(
+  items: readonly T[],
+  query: string,
+): T[] => {
+  if (query.length === 0) return [...items]
+
+  let matches = items.filter((item) => fuzzyContains(item.name, query))
+  const hasPrefixMatch = matches.some((item) => fuzzyScore(item.name, query) === 0)
+  if (hasPrefixMatch) {
+    matches = matches.filter((item) => fuzzyScore(item.name, query) === 0)
+  } else {
+    const hasSubstringMatch = matches.some((item) => fuzzyScore(item.name, query) === 1)
+    if (hasSubstringMatch) {
+      matches = matches.filter((item) => fuzzyScore(item.name, query) === 1)
+    }
+  }
+
+  return matches.sort((left, right) => {
+    const scoreA = fuzzyScore(left.name, query)
+    const scoreB = fuzzyScore(right.name, query)
+    if (scoreA !== scoreB) return scoreA - scoreB
+    return left.name.localeCompare(right.name)
+  })
+}
