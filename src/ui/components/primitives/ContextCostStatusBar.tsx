@@ -39,8 +39,8 @@ export const ContextCostStatusBar = ({
   const text = buildStatusText(contextPercent, sessionTokensUsed, sessionCostUsd, terminalWidth);
 
   return (
-    <box flexDirection="row" flexShrink={0} width="100%" justifyContent="flex-end" marginTop={0}>
-      <text fg={warmContext ? WARM_FG : MUTED_FG}>{text}</text>
-    </box>
+    <text flexShrink={0} fg={warmContext ? WARM_FG : MUTED_FG}>
+      {text}
+    </text>
   );
 };

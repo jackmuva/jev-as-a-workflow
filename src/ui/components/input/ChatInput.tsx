@@ -102,16 +102,12 @@ export const ChatInput = ({
   }
 
   return (
-    <box
-      backgroundColor={"#1e1e2e"}
+    <box backgroundColor={"#1e1e2e"}
       paddingLeft={BOX_PADDING_X}
       paddingRight={BOX_PADDING_X}
       paddingTop={1}
       paddingBottom={1}
-      marginY={marginY}
-      marginX={1}
-      flexShrink={0}
-    >
+      flexShrink={0} >
       <textarea
         ref={textareaRef}
         marginY={0}

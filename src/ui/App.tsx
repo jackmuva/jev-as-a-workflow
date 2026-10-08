@@ -293,16 +293,26 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
           />
         ))}
       </scrollbox>
-      <box flexDirection="column" flexShrink={0} width="100%">
-        {(status === "working" || generating) && (
-          <WorkingIndicator
-            label={
-              generating
-                ? "Generating workflow…"
-                : "Working… (Ctrl+C to stop)"
-            }
+      <box flexDirection="column" flexShrink={0} width="100%" paddingTop={1}>
+        <box flexDirection="row" width="100%" justifyContent="space-between" alignItems="center">
+          {(status === "working" || generating) ? (
+            <WorkingIndicator
+              label={
+                generating
+                  ? "Generating workflow…"
+                  : "Working… (Ctrl+C to stop)"
+              }
+            />
+          ) : (
+            <box flexShrink={0} />
+          )}
+          <ContextCostStatusBar
+            contextPercent={contextPercent}
+            sessionTokensUsed={sessionTokensUsed}
+            sessionCostUsd={sessionCostUsd}
+            terminalWidth={width}
           />
-        )}
+        </box>
         {status === "error" && <text>ERROR</text>}
         {pendingWorkflow && (
           <text fg="#565f89">
@@ -315,22 +325,15 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
             onSubmit={handleAskQuestionSubmit}
           />
         ) : (
-          <ChatInput
-            disabled={inputDisabled}
-            placeholder={chatPlaceholder}
-            allowEmptySubmit={pendingWorkflow !== null}
-            marginY={visibleMessages.length > 0 ? 1 : 0}
-            slashCommandHandlers={slashCommandHandlers}
-            onCompletionChange={handleCompletionChange}
-            onSubmit={handleSubmit}
-          />
+            <ChatInput
+              disabled={inputDisabled}
+              placeholder={chatPlaceholder}
+              allowEmptySubmit={pendingWorkflow !== null}
+              slashCommandHandlers={slashCommandHandlers}
+              onCompletionChange={handleCompletionChange}
+              onSubmit={handleSubmit}
+            />
         )}
-        <ContextCostStatusBar
-          contextPercent={contextPercent}
-          sessionTokensUsed={sessionTokensUsed}
-          sessionCostUsd={sessionCostUsd}
-          terminalWidth={width}
-        />
       </box>
       {completion.open && (
         <CompletionOverlayDialog
