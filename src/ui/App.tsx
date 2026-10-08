@@ -47,7 +47,6 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     resumeSession,
     applySessionCapabilities,
     session,
-    workspacePath,
   } = useSessionPersistence(seedMessages)
   const workflowStore = useMemo(() => WorkflowStore.open(), [])
   const [status, setStatus] = useState<"ready" | "working" | "error">("ready")
@@ -58,7 +57,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   const [pendingWorkflow, setPendingWorkflow] = useState<WorkflowRecord | null>(null)
   const [generating, setGenerating] = useState(false)
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>(() =>
-    workflowStore.listWorkflows(workspacePath),
+    workflowStore.listWorkflows(),
   )
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(
     () => !isCatalogEmpty(capabilityCatalog) && session.capabilities === null,
@@ -93,8 +92,8 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   )
 
   const refreshWorkflows = useCallback(() => {
-    setWorkflows(workflowStore.listWorkflows(workspacePath))
-  }, [workflowStore, workspacePath])
+    setWorkflows(workflowStore.listWorkflows())
+  }, [workflowStore])
 
   const openCapabilityPicker = useCallback(() => {
     setCapabilityPickerOpen(!isCatalogEmpty(capabilityCatalog))
@@ -140,7 +139,6 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       const generated = await generateWorkflowFromSession(sessionMessages)
       const requiredCapabilities = getSessionCapabilities(sessionId) ?? emptyCapabilitySelection()
       const saved = workflowStore.saveWorkflow({
-        workspacePath,
         sourceSessionId: sessionId,
         title: generated.title,
         goal: generated.goal,
@@ -166,7 +164,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     } finally {
       setGenerating(false)
     }
-  }, [getSessionCapabilities, loadSessionMessages, refreshWorkflows, setMessages, workflowStore, workspacePath])
+  }, [getSessionCapabilities, loadSessionMessages, refreshWorkflows, setMessages, workflowStore])
 
   const handleGenerateSessionPickerDismiss = useCallback(() => {
     setGenerateSessionPickerOpen(false)

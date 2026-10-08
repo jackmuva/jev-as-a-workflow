@@ -8,7 +8,6 @@ export type WorkflowStep = {
 
 export type WorkflowRecord = {
   id: string;
-  workspacePath: string;
   sourceSessionId: string | null;
   title: string;
   goal: string;

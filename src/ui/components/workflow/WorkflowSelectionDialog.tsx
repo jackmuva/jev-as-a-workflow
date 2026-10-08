@@ -2,13 +2,17 @@ import type { SelectOption } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import { useMemo, useState } from "react"
 import type { WorkflowRecord } from "../../../models/workflow"
+import { getFilterKeyAction } from "../../lib/dialog-filter-key"
+import { filterByFuzzyName } from "../../lib/input-completion/fuzzy-match"
 import { AGENT_BORDER_COLOR } from "../primitives/MessageFrame"
 
 const MAX_VISIBLE_ITEMS = 6
 const DIALOG_WIDTH = 56
 const DIALOG_PADDING = 2
 const DIALOG_BORDER = 2
-const INSTRUCTIONS = "↑/↓ to navigate · Enter to select · Esc to dismiss"
+const INSTRUCTIONS = "Type to filter · ↑/↓ to navigate · Enter to select · Esc to dismiss"
+const TEXT_FG = "#c0caf5"
+const MUTED_FG = "#565f89"
 
 type WorkflowSelectionDialogProps = {
   workflows: WorkflowRecord[]
@@ -27,6 +31,9 @@ const formatWorkflowDescription = (workflow: WorkflowRecord) => {
   return `${stepCount} step${stepCount === 1 ? "" : "s"} · Updated ${updated}`
 }
 
+const truncate = (text: string, width: number) =>
+  text.length > width ? `${text.slice(0, Math.max(0, width - 1))}…` : text
+
 export const WorkflowSelectionDialog = ({
   workflows,
   onSelect,
@@ -35,8 +42,32 @@ export const WorkflowSelectionDialog = ({
   terminalHeight,
 }: WorkflowSelectionDialogProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [filterQuery, setFilterQuery] = useState("")
+
+  const filteredWorkflows = useMemo(() => {
+    const entries = workflows.map((workflow) => ({
+      name: formatWorkflowLabel(workflow),
+      workflow,
+    }))
+    return filterByFuzzyName(entries, filterQuery).map((entry) => entry.workflow)
+  }, [workflows, filterQuery])
+
+  const applyFilterKey = (action: NonNullable<ReturnType<typeof getFilterKeyAction>>) => {
+    if (action.type === "backspace") {
+      setFilterQuery((query) => query.slice(0, -1))
+    } else {
+      setFilterQuery((query) => query + action.char)
+    }
+    setSelectedIndex(0)
+  }
 
   useKeyboard((key) => {
+    const filterKey = getFilterKeyAction(key)
+    if (filterKey) {
+      if (workflows.length > 0) applyFilterKey(filterKey)
+      return
+    }
+
     if (workflows.length === 0) {
       if (key.name === "escape" || key.name === "return" || key.name === "kpenter") {
         onDismiss()
@@ -44,40 +75,61 @@ export const WorkflowSelectionDialog = ({
       return
     }
 
+    if (filteredWorkflows.length === 0) {
+      if (key.name === "escape") {
+        if (filterQuery.length > 0) {
+          setFilterQuery("")
+          setSelectedIndex(0)
+        } else {
+          onDismiss()
+        }
+      }
+      return
+    }
+
     if (key.name === "up") {
-      setSelectedIndex((index) => (index - 1 + workflows.length) % workflows.length)
+      setSelectedIndex((index) => (index - 1 + filteredWorkflows.length) % filteredWorkflows.length)
       return
     }
 
     if (key.name === "down") {
-      setSelectedIndex((index) => (index + 1) % workflows.length)
+      setSelectedIndex((index) => (index + 1) % filteredWorkflows.length)
       return
     }
 
     if (key.name === "return" || key.name === "kpenter") {
-      const workflow = workflows[selectedIndex]
+      const workflow = filteredWorkflows[selectedIndex]
       if (workflow) onSelect(workflow.id)
       return
     }
 
     if (key.name === "escape") {
-      onDismiss()
+      if (filterQuery.length > 0) {
+        setFilterQuery("")
+        setSelectedIndex(0)
+      } else {
+        onDismiss()
+      }
     }
   })
 
   const options: SelectOption[] = useMemo(
     () =>
-      workflows.map((workflow) => ({
+      filteredWorkflows.map((workflow) => ({
         name: formatWorkflowLabel(workflow),
         description: formatWorkflowDescription(workflow),
         value: workflow.id,
       })),
-    [workflows],
+    [filteredWorkflows],
   )
 
   const dialogWidth = Math.min(DIALOG_WIDTH, Math.max(24, terminalWidth - 4))
   const innerWidth = dialogWidth - DIALOG_BORDER - DIALOG_PADDING
-  const headerLines = 1 + Math.ceil(INSTRUCTIONS.length / innerWidth)
+  const headerLines =
+    1
+    + (workflows.length > 0 ? 1 : 0)
+    + (workflows.length > 0 ? 1 : 0)
+    + Math.ceil(INSTRUCTIONS.length / innerWidth)
   const chromeLines = headerLines + DIALOG_PADDING + DIALOG_BORDER
 
   const linesPerItem = 2
@@ -87,10 +139,30 @@ export const WorkflowSelectionDialog = ({
     maxListHeight,
     Math.max(linesPerItem, options.length * linesPerItem),
   )
-  const bodyHeight = workflows.length === 0 ? 1 : listHeight
+  const bodyHeight = workflows.length === 0 || filteredWorkflows.length === 0 ? 1 : listHeight
   const dialogHeight = bodyHeight + chromeLines
   const top = Math.max(1, Math.floor((terminalHeight - dialogHeight) / 2))
   const left = Math.max(1, Math.floor((terminalWidth - dialogWidth) / 2))
+
+  const listBody = (() => {
+    if (workflows.length === 0) {
+      return <text fg={MUTED_FG} flexShrink={0}>No saved workflows</text>
+    }
+    if (filteredWorkflows.length === 0) {
+      return <text fg={MUTED_FG} flexShrink={0}>No matches for filter</text>
+    }
+    return (
+      <select
+        options={options}
+        selectedIndex={selectedIndex}
+        showDescription={true}
+        showSelectionIndicator={true}
+        height={listHeight}
+        width="100%"
+        focused={false}
+      />
+    )
+  })()
 
   return (
     <>
@@ -118,20 +190,23 @@ export const WorkflowSelectionDialog = ({
         padding={1}
       >
         <text fg={AGENT_BORDER_COLOR} flexShrink={0}>Run workflow</text>
-        <text fg="#565f89" flexShrink={0}>{INSTRUCTIONS}</text>
-        {workflows.length === 0 ? (
-          <text fg="#565f89" flexShrink={0}>No saved workflows for this workspace</text>
-        ) : (
-          <select
-            options={options}
-            selectedIndex={selectedIndex}
-            showDescription={true}
-            showSelectionIndicator={true}
-            height={listHeight}
-            width="100%"
-            focused={false}
-          />
+        {workflows.length > 0 && (
+          <text fg={MUTED_FG} flexShrink={0}>
+            {filterQuery.length > 0
+              ? `${filteredWorkflows.length} of ${workflows.length} shown`
+              : `${workflows.length} saved workflow${workflows.length === 1 ? "" : "s"}`}
+          </text>
         )}
+        {workflows.length > 0 && (
+          <text fg={filterQuery.length > 0 ? TEXT_FG : MUTED_FG} flexShrink={0}>
+            {truncate(
+              filterQuery.length > 0 ? `Filter: ${filterQuery}` : "Filter: (type to search)",
+              innerWidth,
+            )}
+          </text>
+        )}
+        <text fg={MUTED_FG} flexShrink={0}>{INSTRUCTIONS}</text>
+        {listBody}
       </box>
     </>
   )

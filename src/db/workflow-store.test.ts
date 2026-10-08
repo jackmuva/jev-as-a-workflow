@@ -9,12 +9,10 @@ const sampleCapabilities = () => {
 };
 
 describe('WorkflowStore', () => {
-  test('saves and lists workflows for a workspace', () => {
+  test('saves and lists workflows', () => {
     const store = WorkflowStore.openInMemory();
-    const workspace = '/tmp/project-workflows';
 
     const saved = store.saveWorkflow({
-      workspacePath: workspace,
       sourceSessionId: 'session-1',
       title: 'Add persistence',
       goal: 'Add SQLite-backed workflow storage',
@@ -31,7 +29,7 @@ describe('WorkflowStore', () => {
     expect(saved.id).toBeTruthy();
     expect(saved.createdAt).toBeGreaterThan(0);
 
-    const workflows = store.listWorkflows(workspace);
+    const workflows = store.listWorkflows();
     expect(workflows).toHaveLength(1);
     expect(workflows[0]?.title).toBe('Add persistence');
     expect(workflows[0]?.steps[0]?.toolParameters).toEqual({ pattern: 'SessionStore' });
@@ -41,7 +39,6 @@ describe('WorkflowStore', () => {
   test('gets a workflow by id', () => {
     const store = WorkflowStore.openInMemory();
     const saved = store.saveWorkflow({
-      workspacePath: '/tmp/project-get',
       title: 'Test workflow',
       goal: 'Verify retrieval',
       requiredCapabilities: emptyCapabilitySelection(),
@@ -55,10 +52,8 @@ describe('WorkflowStore', () => {
 
   test('orders workflows by most recently updated', async () => {
     const store = WorkflowStore.openInMemory();
-    const workspace = '/tmp/project-order';
 
     const first = store.saveWorkflow({
-      workspacePath: workspace,
       title: 'First',
       goal: 'First goal',
       requiredCapabilities: emptyCapabilitySelection(),
@@ -68,15 +63,36 @@ describe('WorkflowStore', () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     const second = store.saveWorkflow({
-      workspacePath: workspace,
       title: 'Second',
       goal: 'Second goal',
       requiredCapabilities: emptyCapabilitySelection(),
       steps: [{ intent: 'Two', action: 'Do two things' }],
     });
 
-    const workflows = store.listWorkflows(workspace);
+    const workflows = store.listWorkflows();
     expect(workflows[0]?.id).toBe(second.id);
     expect(workflows[1]?.id).toBe(first.id);
+  });
+
+  test('lists workflows across all saves regardless of source session', () => {
+    const store = WorkflowStore.openInMemory();
+
+    store.saveWorkflow({
+      sourceSessionId: 'session-a',
+      title: 'From A',
+      goal: 'Goal A',
+      requiredCapabilities: emptyCapabilitySelection(),
+      steps: [{ intent: 'A', action: 'Do A' }],
+    });
+
+    store.saveWorkflow({
+      sourceSessionId: 'session-b',
+      title: 'From B',
+      goal: 'Goal B',
+      requiredCapabilities: emptyCapabilitySelection(),
+      steps: [{ intent: 'B', action: 'Do B' }],
+    });
+
+    expect(store.listWorkflows()).toHaveLength(2);
   });
 });

@@ -4,7 +4,6 @@ import { buildWorkflowUserMessage, parseWorkflowPrompt } from './build-message';
 
 const sampleWorkflow: WorkflowRecord = {
   id: 'wf-1',
-  workspacePath: '/tmp/project',
   sourceSessionId: null,
   title: 'Add persistence',
   goal: 'Add SQLite-backed workflow storage',
