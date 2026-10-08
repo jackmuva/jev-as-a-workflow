@@ -24,6 +24,7 @@ import { ClarifyQuestionBox } from "./components/primitives/ClarifyQuestionBox"
 import { MessageContent } from "./components/primitives/MessageContent"
 import { ContextCostStatusBar } from "./components/primitives/ContextCostStatusBar"
 import { WorkingIndicator } from "./components/primitives/WorkingIndicator"
+import { useCopyOnSelection } from "./hooks/useCopyOnSelection"
 import { useProviderMetadata } from "./hooks/useProviderMetadata"
 import type { CompletionState } from "../models/ui"
 import { resolveUserMessage } from "./lib/input-completion/at-files"
@@ -64,6 +65,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
   )
   const runAbortRef = useRef<AbortController | null>(null)
   const renderer = useRenderer()
+  const copiedVisible = useCopyOnSelection()
 
   useEffect(() => {
     if (isCatalogEmpty(capabilityCatalog)) return
@@ -303,6 +305,8 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
                   : "Working… (Ctrl+C to stop)"
               }
             />
+          ) : copiedVisible ? (
+            <text fg="#9ece6a">Copied</text>
           ) : (
             <box flexShrink={0} />
           )}
