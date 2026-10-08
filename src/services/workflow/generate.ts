@@ -207,10 +207,7 @@ ${stringifyToolCalls(toolCalls)}`;
     });
     recordLlmUsage(generation);
     return finalizeGeneratedWorkflow(generation.output);
-  } catch (error) {
-    if (error instanceof WorkflowGenerationError) throw error;
-    if (!isStructuredOutputUnsupported(error)) throw error;
-  }
+  } catch (error) { }
 
   try {
     const generation = await generateText({
