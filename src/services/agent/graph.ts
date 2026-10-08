@@ -11,9 +11,9 @@ import {
 import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
 import { recordLlmUsage } from './hooks/session-usage';
 import type { AgentState, JevMessage } from '../../models/agent';
-import type { McpTool } from '../../models/mcp';
+import { mcpToolKey, type McpTool } from '../../models/mcp';
 import { mcpClient } from '../mcp/mcp-client';
-import { isCapabilityEnabled } from './capabilities';
+import { isCapabilityEnabled, isMcpToolEnabled } from './capabilities';
 import { askQuestionTool, type AskQuestionInput } from './default-tools/ask-question';
 import { createPlanTool, type CreatePlanInput, wrapPlanToolMessages } from './default-tools/create-plan';
 import {
@@ -25,8 +25,6 @@ import { listSkills } from './hooks/front-load';
 import { preparePrompt } from './prompt';
 import { executeUserTool, isUserToolKey, listUserTools, loadUserTools } from './user-tools/loader';
 import { jevMessage, toModelMessages } from './utils/jev-message';
-
-const toolKey = (tool: McpTool) => `${tool.server}/${tool.name}`;
 
 const parseToolKey = (key: string): { server: string, name: string } => {
   const slash = key.indexOf('/');
@@ -85,7 +83,7 @@ const buildToolCriteria = (tools: McpTool[]) => {
       description: string,
       inputSchema?: JSONValue
     }
-  } = Object.fromEntries(tools.map((t) => [toolKey(t), {
+  } = Object.fromEntries(tools.map((t) => [mcpToolKey(t), {
     description: t.description ?? 'No description provided',
     inputSchema: t.inputSchema as JSONValue,
   }]));
@@ -117,7 +115,7 @@ const listAllTools = async () => [
   // load_skill is useless when every skill is disabled
   ...listDefaultTools().filter((t) => t.name !== 'load_skill' || listSkills().length > 0),
   ...listUserTools().filter((t) => isCapabilityEnabled('userTools', t.name)),
-  ...(await mcpClient.listTools()).filter((t) => isCapabilityEnabled('mcpServers', t.server)),
+  ...(await mcpClient.listTools()).filter((t) => isMcpToolEnabled(t)),
 ];
 
 const formatToolList = (tools: McpTool[]) => tools
@@ -343,7 +341,7 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
   }
 
   const availableTools = await listAllTools();
-  const selected = availableTools.find((t) => toolKey(t) === selectedTool);
+  const selected = availableTools.find((t) => mcpToolKey(t) === selectedTool);
   if (!selected) {
     const message: ModelMessage = {
       role: 'assistant',

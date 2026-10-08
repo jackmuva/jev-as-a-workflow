@@ -7,6 +7,7 @@ import { ensureJevHome, loadAppConfig } from "./services/config/app-config"
 import { jevMessage } from "./services/agent/utils/jev-message"
 import { listUserTools, loadUserTools } from "./services/agent/user-tools/loader"
 import { disposeAppClipboard, initAppClipboard } from "./services/clipboard/app-clipboard"
+import { mcpToolKey } from "./models/mcp"
 import { mcpClient } from "./services/mcp/mcp-client"
 
 await ensureJevHome()
@@ -26,7 +27,10 @@ try {
 await loadUserTools()
 const capabilityCatalog: CapabilityCatalog = {
   skills: await discoverSkills(),
-  mcpServers: mcpClient.listServers().map((name) => ({ name })),
+  mcpServers: (await mcpClient.listTools()).map((tool) => ({
+    name: mcpToolKey(tool),
+    description: tool.description,
+  })),
   userTools: listUserTools(),
   agentsMd: await discoverAgentsMd(),
 }

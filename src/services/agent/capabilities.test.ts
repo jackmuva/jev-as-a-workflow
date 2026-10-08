@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { emptyCapabilitySelection, mergeCapabilitySelection } from './capabilities';
+import {
+  emptyCapabilitySelection,
+  isMcpToolEnabled,
+  mergeCapabilitySelection,
+  setCapabilitySelection,
+} from './capabilities';
 
 describe('mergeCapabilitySelection', () => {
   test('merges capabilities additively', () => {
@@ -45,5 +50,25 @@ describe('mergeCapabilitySelection', () => {
     };
 
     expect(mergeCapabilitySelection(selection, selection)).toEqual(selection);
+  });
+});
+
+describe('isMcpToolEnabled', () => {
+  test('enables a tool when its key is selected', () => {
+    setCapabilitySelection({
+      ...emptyCapabilitySelection(),
+      mcpServers: ['github/create_issue'],
+    });
+    expect(isMcpToolEnabled({ server: 'github', name: 'create_issue' })).toBe(true);
+    expect(isMcpToolEnabled({ server: 'github', name: 'list_repos' })).toBe(false);
+  });
+
+  test('treats a legacy server name as enabling all tools on that server', () => {
+    setCapabilitySelection({
+      ...emptyCapabilitySelection(),
+      mcpServers: ['github'],
+    });
+    expect(isMcpToolEnabled({ server: 'github', name: 'create_issue' })).toBe(true);
+    expect(isMcpToolEnabled({ server: 'slack', name: 'post_message' })).toBe(false);
   });
 });
