@@ -6,6 +6,7 @@ import { discoverAgentsMd, discoverSkills, frontLoadMessages } from "./services/
 import { ensureJevHome, loadAppConfig } from "./services/config/app-config"
 import { jevMessage } from "./services/agent/utils/jev-message"
 import { listUserTools, loadUserTools } from "./services/agent/user-tools/loader"
+import { disposeAppClipboard, initAppClipboard } from "./services/clipboard/app-clipboard"
 import { mcpClient } from "./services/mcp/mcp-client"
 
 await ensureJevHome()
@@ -30,7 +31,10 @@ const capabilityCatalog: CapabilityCatalog = {
   agentsMd: await discoverAgentsMd(),
 }
 
-process.on("exit", () => { void mcpClient.close() })
+process.on("exit", () => {
+  void mcpClient.close()
+  void disposeAppClipboard()
+})
 const renderer = await createCliRenderer({
   exitOnCtrlC: false,
   exitSignals: [
@@ -43,6 +47,7 @@ const renderer = await createCliRenderer({
     "SIGBUS",
   ],
 })
+initAppClipboard(renderer)
 createRoot(renderer).render((
   <App
     initialMessage={initialMessage}
