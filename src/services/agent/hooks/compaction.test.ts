@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { JevMessage } from '../../../models/agent';
 import { COMPACTION_CONTEXT_WINDOW, COMPACTION_TOKEN_THRESHOLD } from '../../../constants';
-import { estimateMessagesTokens } from './compaction';
+import { estimateMessagesTokens, shrinkMessagesToTokenBudget } from './compaction';
 
 const largeToolResult = (size: number): JevMessage => ({ message: {
   role: 'tool',
@@ -38,5 +38,29 @@ describe('estimateMessagesTokens', () => {
     const tokenLimit = COMPACTION_CONTEXT_WINDOW * COMPACTION_TOKEN_THRESHOLD;
 
     expect(estimate).toBeGreaterThan(tokenLimit);
+  });
+});
+
+describe('shrinkMessagesToTokenBudget', () => {
+  test('truncates retained tool output when everything is in the keep window', () => {
+    const messages: JevMessage[] = [
+      { message: { role: 'user', content: 'read the file' } },
+      largeToolResult(80_000),
+    ];
+    const tokenLimit = COMPACTION_CONTEXT_WINDOW * COMPACTION_TOKEN_THRESHOLD;
+
+    expect(estimateMessagesTokens(messages)).toBeGreaterThan(tokenLimit);
+
+    const shrunk = shrinkMessagesToTokenBudget(messages, tokenLimit);
+
+    expect(estimateMessagesTokens(shrunk)).toBeLessThanOrEqual(tokenLimit);
+    const toolPart = shrunk[1]?.message;
+    expect(toolPart?.role).toBe('tool');
+    if (toolPart?.role === 'tool' && Array.isArray(toolPart.content)) {
+      const value = toolPart.content[0]?.type === 'tool-result' && 'value' in toolPart.content[0].output
+        ? toolPart.content[0].output.value
+        : '';
+      expect(String(value).length).toBeLessThan(80_000);
+    }
   });
 });

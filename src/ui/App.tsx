@@ -1,6 +1,6 @@
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { jevLoop } from "../services/agent/agent-loop"
+import { jevLoop, type JevLoopResult } from "../services/agent/agent-loop"
 import {
   getCapabilitySelection,
   emptyCapabilitySelection,
@@ -197,6 +197,10 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     setPendingWorkflow(null)
   })
 
+  const finishAgentRun = (outcome: JevLoopResult) => {
+    setStatus(outcome === "error" ? "error" : "ready")
+  }
+
   const handleSubmit = async (text: string) => {
     if (status === "working" || generating) return
 
@@ -218,10 +222,9 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
       const runAbort = new AbortController()
       runAbortRef.current = runAbort
       try {
-        await jevLoop(nextMessages, setMessages, { signal: runAbort.signal })
+        finishAgentRun(await jevLoop(nextMessages, setMessages, { signal: runAbort.signal }))
       } finally {
         runAbortRef.current = null
-        setStatus("ready")
       }
       return
     }
@@ -236,10 +239,9 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     const runAbort = new AbortController()
     runAbortRef.current = runAbort
     try {
-      await jevLoop(nextMessages, setMessages, { signal: runAbort.signal })
+      finishAgentRun(await jevLoop(nextMessages, setMessages, { signal: runAbort.signal }))
     } finally {
       runAbortRef.current = null
-      setStatus("ready")
     }
   }
 
@@ -262,10 +264,9 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
     const runAbort = new AbortController()
     runAbortRef.current = runAbort
     try {
-      await jevLoop(nextMessages, setMessages, { signal: runAbort.signal })
+      finishAgentRun(await jevLoop(nextMessages, setMessages, { signal: runAbort.signal }))
     } finally {
       runAbortRef.current = null
-      setStatus("ready")
     }
   }
 
@@ -315,7 +316,7 @@ export function App({ initialMessage, seedMessages, capabilityCatalog }: AppProp
             terminalWidth={width}
           />
         </box>
-        {status === "error" && <text>ERROR</text>}
+        {status === "error" && <text fg="#f7768e">Run failed — see the assistant message above.</text>}
         {pendingWorkflow && (
           <text fg="#565f89">
             {`Running workflow: ${pendingWorkflow.title} (Esc to cancel)`}

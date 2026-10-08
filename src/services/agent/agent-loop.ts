@@ -3,6 +3,7 @@ import type { AgentState, JevMessage } from '../../models/agent';
 import { clarifyTaskNode, createPlanNode, initialNode, runToolNode, actionSelectNode } from './graph';
 import { compactionHook } from './hooks/compaction';
 import { rewindState } from './hooks/rewind';
+import { formatAgentRunError } from './llm-error';
 import { jevMessage } from './utils/jev-message';
 
 const MAX_ITERATIONS = 50;
@@ -10,6 +11,8 @@ const MAX_ITERATIONS = 50;
 export type JevLoopOptions = {
   signal?: AbortSignal;
 };
+
+export type JevLoopResult = 'ok' | 'error' | 'stopped';
 
 const sync = (next: AgentState, callback: (messages: JevMessage[]) => void): AgentState => {
   callback(next.messages);
@@ -27,6 +30,18 @@ const stopIfAborted = (state: AgentState, callback: (messages: JevMessage[]) => 
   }, callback);
 };
 
+const endRunWithError = (
+  state: AgentState,
+  error: unknown,
+  callback: (messages: JevMessage[]) => void,
+): AgentState => sync({
+  state: 'END',
+  messages: [
+    ...state.messages,
+    jevMessage({ role: 'assistant', content: formatAgentRunError(error) }),
+  ],
+}, callback);
+
 const runNode = async (state: AgentState, node: (state: AgentState) => Promise<AgentState>, callback: (messages: JevMessage[]) => void, signal?: AbortSignal,): Promise<{ ok: boolean; state: AgentState }> => {
   let current = sync(await compactionHook(state), callback);
   let ended = stopIfAborted(current, callback, signal);
@@ -35,8 +50,12 @@ const runNode = async (state: AgentState, node: (state: AgentState) => Promise<A
   try {
     current = sync(await node(current), callback);
   } catch {
-    current = sync(await compactionHook(current, true), callback);
-    current = sync(await node(current), callback);
+    try {
+      current = sync(await compactionHook(current, true), callback);
+      current = sync(await node(current), callback);
+    } catch (retryError) {
+      return { ok: false, state: endRunWithError(current, retryError, callback) };
+    }
   }
 
   ended = stopIfAborted(current, callback, signal);
@@ -51,26 +70,26 @@ export const jevLoop = async (
   messages: JevMessage[],
   callback: (messages: JevMessage[]) => void,
   options?: JevLoopOptions,
-) => {
+): Promise<JevLoopResult> => {
   const signal = options?.signal;
   let state: AgentState = { state: 'START', messages: [...messages] };
 
-  if (findPendingAskQuestion(state.messages)) return;
+  if (findPendingAskQuestion(state.messages)) return 'ok';
 
   let result = await runNode(state, initialNode, callback, signal);
   state = result.state;
-  if (!result.ok) return;
-  if (state.state === 'END') return;
+  if (!result.ok) return 'error';
+  if (state.state === 'END') return 'ok';
 
   if (state.state === 'PLAN') {
     result = await runNode(state, createPlanNode, callback, signal);
     state = result.state;
-    if (!result.ok) return;
+    if (!result.ok) return 'error';
   } else if (state.state === 'DISCOVERY') {
     result = await runNode(state, clarifyTaskNode, callback, signal);
     state = result.state;
-    if (!result.ok) return;
-    if (findPendingAskQuestion(state.messages)) return;
+    if (!result.ok) return 'error';
+    if (findPendingAskQuestion(state.messages)) return 'ok';
   }
 
   let checkpoints: Array<{ state: AgentState; options: string[] }> = [];
@@ -79,7 +98,7 @@ export const jevLoop = async (
     const loopEnded = stopIfAborted(state, callback, signal);
     if (loopEnded) {
       state = loopEnded;
-      return;
+      return 'stopped';
     }
 
     if (state.state !== 'REWIND' && !state.selectedTool) {
@@ -92,7 +111,7 @@ export const jevLoop = async (
         return newState;
       }, callback, signal);
       state = result.state;
-      if (!result.ok) return;
+      if (!result.ok) return 'error';
       if (actionSelectCheckpoint) checkpoints.push(actionSelectCheckpoint);
     }
 
@@ -100,14 +119,14 @@ export const jevLoop = async (
     if (runningTool) {
       result = await runNode(state, runToolNode, callback, signal);
       state = result.state;
-      if (!result.ok) return;
+      if (!result.ok) return 'error';
     }
     if (runningTool) {
-      if (state.state === 'DISCOVERY' || findPendingAskQuestion(state.messages)) return;
+      if (state.state === 'DISCOVERY' || findPendingAskQuestion(state.messages)) return 'ok';
       state = sync({ ...state, selectedTool: undefined, probabilities: undefined }, callback);
     }
 
-    if (state.state === 'END') return;
+    if (state.state === 'END') return 'ok';
     if (state.state === 'REWIND') {
       const { state: rewoundState, checkpoints: rewoundCheckpoints } = rewindState(checkpoints, state);
       checkpoints = rewoundCheckpoints;
@@ -120,7 +139,7 @@ export const jevLoop = async (
             content: 'Unable to complete the task with given tools',
           })],
         }, callback);
-        return;
+        return 'ok';
       }
     }
     i += 1;
@@ -133,4 +152,5 @@ export const jevLoop = async (
       content: 'Unable to complete the task with given tools',
     })],
   }, callback);
+  return 'ok';
 };
