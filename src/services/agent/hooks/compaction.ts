@@ -3,6 +3,7 @@ import {
   COMPACTION_CONTEXT_WINDOW,
   COMPACTION_TOKEN_THRESHOLD,
   LLM_MODEL,
+  TOOL_RESULT_MIN_KEEP,
   TOOL_TRUNCATE_STEPS,
 } from '../../../constants';
 import { recordLlmUsage } from './session-usage';
@@ -80,7 +81,8 @@ const truncateToolResultParts = (message: ModelMessage, maxChars: number): Model
     const text = typeof value === 'string' ? value : JSON.stringify(value);
     if (text.length <= maxChars) return part;
     changed = true;
-    return { ...part, output: { ...part.output, value: truncate(text, maxChars) } };
+    const keep = Math.max(maxChars, TOOL_RESULT_MIN_KEEP);
+    return { ...part, output: { ...part.output, value: truncate(text, keep) } };
   });
 
   return changed ? { ...message, content } as ModelMessage : message;

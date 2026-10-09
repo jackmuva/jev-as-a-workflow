@@ -8,6 +8,7 @@ import {
   type ModelMessage,
   type ToolChoice,
 } from 'ai';
+import { compactMessages } from './hooks/compaction';
 import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
 import { recordLlmUsage } from './hooks/session-usage';
 import type { AgentState, JevMessage } from '../../models/agent';
@@ -403,13 +404,16 @@ export const runToolNode = async (state: AgentState): Promise<AgentState> => {
       : await mcpClient.callTool(server, name, toolCall.input as Record<string, unknown>);
   const toolResultMessage = mcpClient.toMessage(toolCall.toolCallId, toolResult);
 
+  let messages: JevMessage[] = [
+    ...state.messages,
+    jevMessage(toolCallMessage, state.probabilities),
+    jevMessage(toolResultMessage),
+  ];
+  messages = await compactMessages(messages);
+
   return {
     state: 'EXECUTE',
-    messages: [
-      ...state.messages,
-      jevMessage(toolCallMessage, state.probabilities),
-      jevMessage(toolResultMessage),
-    ],
+    messages,
     selectedTool,
     probabilities: state.probabilities,
   };
