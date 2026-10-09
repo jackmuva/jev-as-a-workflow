@@ -21,7 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/ins
 Install a specific version:
 
 ```bash
-JEV_VERSION=v0.1.13 curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.sh | sh
+JEV_VERSION=v0.1.14 curl -fsSL https://raw.githubusercontent.com/jackmuva/jev-as-a-workflow/main/install.sh | sh
 ```
 
 On Windows (PowerShell):
@@ -88,11 +88,11 @@ bun run build:all
 Create and push a new version tag:
 
 ```bash
-git tag -a v0.1.13 -m "v0.1.13"
-git push origin v0.1.13
+git tag -a v0.1.14 -m "v0.1.14"
+git push origin v0.1.14
 ```
 
-Replace `v0.1.13` with the version you are releasing. Tags are pushed to GitHub and picked up by the release workflow.
+Replace `v0.1.14` with the version you are releasing. Tags are pushed to GitHub and picked up by the release workflow.
 
 ## Project Structure
 
