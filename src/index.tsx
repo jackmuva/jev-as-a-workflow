@@ -1,17 +1,25 @@
-import { createCliRenderer } from "@opentui/core"
-import { createRoot } from "@opentui/react"
-import { App } from "./ui/App"
 import type { CapabilityCatalog } from "./models/agent"
+import { HEADLESS } from "./constants"
 import { discoverAgentsMd, discoverSkills, frontLoadMessages } from "./services/agent/hooks/front-load"
 import { ensureJevHome, loadAppConfig } from "./services/config/app-config"
 import { jevMessage } from "./services/agent/utils/jev-message"
 import { listUserTools, loadUserTools } from "./services/agent/user-tools/loader"
-import { disposeAppClipboard, initAppClipboard } from "./services/clipboard/app-clipboard"
 import { mcpToolKey } from "./models/mcp"
 import { mcpClient } from "./services/mcp/mcp-client"
 
 await ensureJevHome()
 await loadAppConfig()
+
+if (HEADLESS) {
+  const { runHeadless } = await import("./services/workflow/headless-run")
+  process.exit(await runHeadless(Bun.argv.slice(3)))
+}
+
+// OpenTUI is loaded lazily so headless runs never touch the renderer
+const { createCliRenderer } = await import("@opentui/core")
+const { createRoot } = await import("@opentui/react")
+const { App } = await import("./ui/App")
+const { disposeAppClipboard, initAppClipboard } = await import("./services/clipboard/app-clipboard")
 
 let initialMessage: null | string = null
 const seedMessages = (await frontLoadMessages()).map((message) => jevMessage(message))

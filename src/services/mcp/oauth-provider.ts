@@ -8,7 +8,7 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthOptions } from '../../models/mcp';
-import { MCP_AUTH_DIR } from '../../constants';
+import { HEADLESS, MCP_AUTH_DIR } from '../../constants';
 const DEFAULT_CALLBACK_PORT = 33418;
 const CALLBACK_PATH = '/oauth/callback';
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
@@ -163,6 +163,7 @@ export class FileOAuthProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL) {
+    if (HEADLESS) throw new Error(`MCP server "${this.serverName}" needs authorization; authorize it in interactive jaaw first`);
     // listen before opening the browser so a fast redirect can't be missed
     this.pendingCode = waitForAuthCode(this.port, this.currentState);
     this.onAuthorize(this.serverName, authorizationUrl);

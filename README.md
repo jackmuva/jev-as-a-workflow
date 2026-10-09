@@ -61,6 +61,33 @@ Run the installed binary:
 jaaw
 ```
 
+### Headless workflow runs
+
+Saved workflows can run without the TUI, e.g. from a script, cron job, or sandbox:
+
+```bash
+jaaw run --workflow <path/to/workflow.json | workflow-id> [--input "extra instructions"]
+```
+
+- `--workflow` takes either a JSON file containing a workflow record, or the id of
+  a workflow saved in `~/.jaaw/jaaw-sqlite.db`.
+- `--input` is appended to the workflow as additional instructions (e.g. a webhook payload).
+- Headless runs never ask clarifying questions; the agent makes reasonable assumptions instead.
+- MCP servers that need OAuth must already be authorized: run `jaaw` interactively once,
+  or copy the server's file from `~/.jaaw/mcp-auth/`. Unauthorized servers fail fast
+  and the run continues without them.
+- Set `JAAW_HOME` to use a config directory other than `~/.jaaw`.
+
+Output is JSON lines on stdout, one per agent message, followed by a final result:
+
+```json
+{"type":"message","message":{"role":"assistant","content":"..."}}
+{"type":"result","status":"ok","finalMessage":"..."}
+```
+
+Progress and MCP warnings go to stderr. Exit codes: `0` success, `1` error or stopped,
+`2` the run ended waiting on a question it could not ask.
+
 ## Development
 
 Install dependencies and run in watch mode:

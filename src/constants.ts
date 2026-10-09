@@ -1,7 +1,10 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const JEV_HOME = join(homedir(), '.jaaw');
+export const JEV_HOME = process.env.JAAW_HOME ?? join(homedir(), '.jaaw');
+
+/** `jaaw run ...` runs a workflow without the TUI or any interactive prompts. */
+export const HEADLESS = Bun.argv[2] === 'run';
 
 export const APP_CONFIG_PATH = join(JEV_HOME, 'config.json');
 

@@ -9,7 +9,7 @@ import {
   type ToolChoice,
 } from 'ai';
 import { compactMessages } from './hooks/compaction';
-import { LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
+import { HEADLESS, LLM_MODEL, SYSTEM_ONE_MODEL } from '../../constants';
 import { recordLlmUsage } from './hooks/session-usage';
 import type { AgentState, JevMessage } from '../../models/agent';
 import { mcpToolKey, type McpTool } from '../../models/mcp';
@@ -105,9 +105,12 @@ const buildToolCriteria = (tools: McpTool[]) => {
     [CREATE_PLAN_ACTION]: {
       description: 'Create or revise a numbered plan based on progress and new information.',
     },
-    [ASK_QUESTION_ACTION]: {
-      description: 'Ask follow-up questions when the task needs more clarity.',
-    },
+    // headless runs have nobody to answer, so never offer follow-up questions
+    ...(!HEADLESS && {
+      [ASK_QUESTION_ACTION]: {
+        description: 'Ask follow-up questions when the task needs more clarity.',
+      },
+    }),
     taskCompleted: {
       description: "The user's task was completed"
     },
@@ -149,7 +152,7 @@ export const initialNode = async (state: AgentState): Promise<AgentState> => {
         criteria: {
           "directAnswer": "The user wants a command or action performed with a single tool call.",
           "createPlan": "The user's task is a multi-step problem. We should create a plan.",
-          "clarifyTask": "The task is too ambiguous. We should ask followup questions.",
+          ...(!HEADLESS && { "clarifyTask": "The task is too ambiguous. We should ask followup questions." }),
           "outOfScope": "The task is outside of the capabilities given the tools"
         }
       }
