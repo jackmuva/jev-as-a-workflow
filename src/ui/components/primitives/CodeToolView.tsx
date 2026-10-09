@@ -1,5 +1,5 @@
-import { syntaxStyle } from "../../syntax-style"
 import type { ToolViewProps } from "../../../models/ui"
+import { HighlightedCode } from "./HighlightedCode"
 import { MessageFrame } from "./MessageFrame"
 
 type CodeToolViewProps = ToolViewProps & {
@@ -21,21 +21,7 @@ export const CodeToolView = ({
     {isError ? (
       <text fg="#f7768e">{content}</text>
     ) : (
-      <line-number
-        fg="#565f89"
-        minWidth={3}
-        paddingRight={1}
-        showLineNumbers={true}
-        lineNumberOffset={startLine - 1}
-        width="100%"
-      >
-        <code
-          content={content}
-          filetype={filetype}
-          syntaxStyle={syntaxStyle}
-          width="100%"
-        />
-      </line-number>
+      <HighlightedCode content={content} filetype={filetype} startLine={startLine} />
     )}
   </MessageFrame>
 )

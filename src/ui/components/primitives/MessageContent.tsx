@@ -9,7 +9,9 @@ import {
   type ToolCallPart,
   type ToolResultPart,
 } from "../../lib/format/message"
+import { filetypeFromPath } from "../../lib/format/message"
 import { ChoiceProbabilities } from "./ChoiceProbabilities"
+import { HighlightedCode } from "./HighlightedCode"
 import { AGENT_BORDER_COLOR, MessageFrame, MessageFrameKindContext } from "./MessageFrame"
 
 const formatMessageContent = (message: ModelMessage): string => {
@@ -164,7 +166,10 @@ export const MessageContent = ({ message: { message, probabilities, frame }, too
           {attachments.map((attachment, index) => (
             <MessageFrameKindContext.Provider key={`${attachment.path}-${index}`} value="attachment">
               <MessageFrame title={attachment.path}>
-                <text>{attachment.content}</text>
+                <HighlightedCode
+                  content={attachment.content}
+                  filetype={filetypeFromPath(attachment.path) ?? "plaintext"}
+                />
               </MessageFrame>
             </MessageFrameKindContext.Provider>
           ))}
