@@ -41,6 +41,10 @@ const createPlanInputSchema = jsonSchema<CreatePlanInput>({
     },
   },
   required: ['plan'],
+}, {
+  validate: (value) => typeof (value as Partial<CreatePlanInput>)?.plan === 'string' && (value as CreatePlanInput).plan.trim()
+    ? { success: true, value: value as CreatePlanInput }
+    : { success: false, error: new Error('CreatePlan requires a non-empty `plan` string') },
 });
 
 export const createPlanTool = tool({

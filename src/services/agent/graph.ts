@@ -64,9 +64,8 @@ const generateRequiredToolCall = async ({
       }));
       recordLlmUsage(result);
 
-      const toolCall = result.toolCalls.find(
-        (call) => toolChoice === 'required' || call.toolName === toolName,
-      );
+      // 'required' lets the model pick any tool name (even ones it only saw in the prompt), so always match the requested tool
+      const toolCall = result.toolCalls.find((call) => !call.invalid && call.toolName === toolName);
       if (toolCall) return toolCall;
     } catch (error) {
       if (!ToolChoiceViolationError.isInstance(error)) throw error;
@@ -259,7 +258,7 @@ If a plan already exists, revise it to reflect new information.
 We have the following tools to complete the task:
 ${toolList || '(none)'}
 
-Call the CreatePlan tool with the plan as a markdown numbered list.`;
+Do not execute any steps or call any of the tools above yet; only call the CreatePlan tool with the plan as a markdown numbered list.`;
 
   let toolCall = await generateRequiredToolCall({
     instructions: planInstructions,
