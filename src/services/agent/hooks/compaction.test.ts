@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { mapToolResultOutput } from 'ai/internal';
 import type { JevMessage } from '../../../models/agent';
 import { COMPACTION_CONTEXT_WINDOW, COMPACTION_TOKEN_THRESHOLD } from '../../../constants';
 import { estimateMessagesTokens, shrinkMessagesToTokenBudget } from './compaction';
@@ -95,5 +96,48 @@ describe('shrinkMessagesToTokenBudget', () => {
 
     expect(oldValue.length).toBeLessThan(80_000);
     expect(newValue.length).toBeGreaterThan(oldValue.length);
+  });
+
+  test('normalizes truncated json and content tool outputs to plain text', () => {
+    const tokenLimit = 500;
+    const jsonMessage: JevMessage = {
+      message: {
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: 'json',
+          toolName: 'default/bash',
+          output: { type: 'json', value: { stdout: 'x'.repeat(20_000) } },
+        }],
+      },
+    };
+    const contentMessage: JevMessage = {
+      message: {
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: 'content',
+          toolName: 'provider/tool',
+          output: {
+            type: 'content',
+            value: [{ type: 'text', text: 'y'.repeat(20_000) }],
+          },
+        }],
+      },
+    };
+
+    const shrunk = shrinkMessagesToTokenBudget([jsonMessage, contentMessage], tokenLimit);
+
+    for (const entry of shrunk) {
+      const part = entry.message.role === 'tool' && Array.isArray(entry.message.content)
+        ? entry.message.content[0]
+        : undefined;
+      expect(part?.type).toBe('tool-result');
+      if (part?.type !== 'tool-result') continue;
+      expect(part.output.type).toBe('text');
+      if (part.output.type !== 'text') continue;
+      expect(typeof part.output.value).toBe('string');
+      expect(() => mapToolResultOutput({ output: part.output, downloadedAssets: {} })).not.toThrow();
+    }
   });
 });

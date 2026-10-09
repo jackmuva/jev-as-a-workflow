@@ -77,12 +77,30 @@ const truncateToolResultParts = (message: ModelMessage, maxChars: number): Model
   let changed = false;
   const content = message.content.map((part) => {
     if (part.type !== 'tool-result' || !('value' in part.output)) return part;
-    const value = part.output.value;
-    const text = typeof value === 'string' ? value : JSON.stringify(value);
+
+    const { output } = part;
+    let text: string | undefined;
+    if (output.type === 'text' || output.type === 'error-text') {
+      text = output.value;
+    } else if (output.type === 'json' || output.type === 'error-json') {
+      text = typeof output.value === 'string' ? output.value : JSON.stringify(output.value);
+    } else if (output.type === 'content') {
+      text = output.value
+        .map((item) => (item.type === 'text' ? item.text : `[${item.type}]`))
+        .join('\n');
+    } else {
+      return part;
+    }
+
     if (text.length <= maxChars) return part;
     changed = true;
     const keep = Math.max(maxChars, TOOL_RESULT_MIN_KEEP);
-    return { ...part, output: { ...part.output, value: truncate(text, keep) } };
+    const nextValue = truncate(text, keep);
+    if (output.type === 'text' || output.type === 'error-text') {
+      return { ...part, output: { ...output, value: nextValue } };
+    }
+    // json / error-json / content: keep a plain string so providers never see partial JSON or a broken content array.
+    return { ...part, output: { type: 'text', value: nextValue } };
   });
 
   return changed ? { ...message, content } as ModelMessage : message;
