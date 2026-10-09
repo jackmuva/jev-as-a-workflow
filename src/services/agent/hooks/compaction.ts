@@ -3,17 +3,15 @@ import {
   COMPACTION_CONTEXT_WINDOW,
   COMPACTION_TOKEN_THRESHOLD,
   LLM_MODEL,
+  TOOL_TRUNCATE_STEPS,
 } from '../../../constants';
 import { recordLlmUsage } from './session-usage';
 import type { AgentState, JevMessage } from '../../../models/agent';
 import { jevMessage } from '../utils/jev-message';
 
 export type CompactionOptions = {
-  /** Number of recent assistant/tool messages to retain. Default 4. */
   keepAssistantMessages?: number;
-  /** Model context window in tokens. Defaults to COMPACTION_CONTEXT_WINDOW. */
   contextWindow?: number;
-  /** Fraction of context window that triggers compaction (0–1). Defaults to COMPACTION_TOKEN_THRESHOLD. */
   tokenThreshold?: number;
 };
 
@@ -27,7 +25,6 @@ const truncate = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max)}…`;
 
 type MessageTextOptions = {
-  /** Truncate tool-result payloads when building text (for summarization). Omit to keep full content. */
   truncateToolResults?: number;
 };
 
@@ -62,11 +59,8 @@ const messageToText = (message: ModelMessage, options: MessageTextOptions = {}):
   return prefix + parts.join('\n');
 };
 
-/** Rough token estimate (~3 chars per token; conservative for code/JSON). */
-const estimateTokens = (text: string): number => Math.ceil(text.length / 3);
-
 const estimateMessageTokens = ({ message }: JevMessage): number =>
-  estimateTokens(messageToText(message));
+  Math.ceil(messageToText(message).length / 3);
 
 export const estimateMessagesTokens = (messages: JevMessage[]): number =>
   messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
@@ -92,8 +86,6 @@ const truncateToolResultParts = (message: ModelMessage, maxChars: number): Model
   return changed ? { ...message, content } as ModelMessage : message;
 };
 
-const TOOL_TRUNCATE_STEPS = [12_000, 8_000, 4_000, 2_000, 800, 400] as const;
-
 const getToolMessageIndicesOldestFirst = (messages: JevMessage[]): number[] =>
   messages
     .map((entry, index) => (entry.message.role === 'tool' ? index : -1))
@@ -110,7 +102,6 @@ const applyToolResultCharLimits = (
     return message === entry.message ? entry : { ...entry, message };
   });
 
-/** Shrink retained tool payloads when summarization cannot run (everything is in the keep window). */
 export const shrinkMessagesToTokenBudget = (
   messages: JevMessage[],
   tokenLimit: number,
@@ -153,9 +144,7 @@ const getRetainedIndices = (
   const retained = new Set<number>();
 
   for (let i = 0; i < messages.length; i++) {
-    if (messages[i]?.message.role === 'system') {
-      retained.add(i);
-    }
+    if (messages[i]?.message.role === 'system') retained.add(i);
   }
 
   for (let i = messages.length - 1; i >= 0; i--) {

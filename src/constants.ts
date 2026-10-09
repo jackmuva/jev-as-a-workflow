@@ -15,6 +15,8 @@ export const COMPACTION_CONTEXT_WINDOW = 32_000;
 
 export const COMPACTION_TOKEN_THRESHOLD = 0.75;
 
+export const TOOL_TRUNCATE_STEPS = [12_000, 8_000, 4_000, 2_000, 800, 400];
+
 export const SYSTEM_ONE_MODEL = 'typesafe-ai/jev';
 
 export const DEFAULT_LLM_MODEL = 'deepseek/deepseek-v4-flash';
